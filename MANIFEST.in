@@ -1,0 +1,3 @@
+include *.md
+include *.txt
+recursive-include tx1_pcie *.json

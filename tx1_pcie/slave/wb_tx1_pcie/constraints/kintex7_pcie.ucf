@@ -1,0 +1,71 @@
+CONFIG PART = xc7k70t-fbg484-1;
+NET "pcie/pcie_adapter/gt_top_i/sys_rst_n" TIG;
+NET "pcie/pcie_adapter/gt_top_i/sys_rst_n" IOSTANDARD = LVCMOS18 | PULLUP | NODELAY ;
+
+INST "pcie/pcie_adapter/pcie_clk_buf" LOC = IBUFDS_GTE2_X0Y1;
+
+# PCIe Lane 0
+INST "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_lane[0].gt_wrapper_i/gtx_channel.gtxe2_channel_i" LOC = GTXE2_CHANNEL_X0Y3;
+# PCIe Lane 1
+INST "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_lane[1].gt_wrapper_i/gtx_channel.gtxe2_channel_i" LOC = GTXE2_CHANNEL_X0Y2;
+# PCIe Lane 2
+INST "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_lane[2].gt_wrapper_i/gtx_channel.gtxe2_channel_i" LOC = GTXE2_CHANNEL_X0Y1;
+# PCIe Lane 3
+INST "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_lane[3].gt_wrapper_i/gtx_channel.gtxe2_channel_i" LOC = GTXE2_CHANNEL_X0Y0;
+
+
+#
+# PCI Express Block placement. This constraint selects the PCI Express
+# Block to be used.
+#
+
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_block_i" LOC = PCIE_X0Y0;
+
+#
+# BlockRAM placement
+#
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_bram_top/pcie_brams_rx/brams[3].ram/use_tdp.ramb36/bram36_tdp_bl.bram36_tdp_bl" LOC = RAMB36_X2Y25 ;
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_bram_top/pcie_brams_rx/brams[2].ram/use_tdp.ramb36/bram36_tdp_bl.bram36_tdp_bl" LOC = RAMB36_X1Y26 ;
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_bram_top/pcie_brams_rx/brams[1].ram/use_tdp.ramb36/bram36_tdp_bl.bram36_tdp_bl" LOC = RAMB36_X1Y25 ;
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_bram_top/pcie_brams_rx/brams[0].ram/use_tdp.ramb36/bram36_tdp_bl.bram36_tdp_bl" LOC = RAMB36_X1Y24 ;
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_bram_top/pcie_brams_tx/brams[0].ram/use_tdp.ramb36/bram36_tdp_bl.bram36_tdp_bl" LOC = RAMB36_X1Y23 ;
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_bram_top/pcie_brams_tx/brams[1].ram/use_tdp.ramb36/bram36_tdp_bl.bram36_tdp_bl" LOC = RAMB36_X1Y22 ;
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_bram_top/pcie_brams_tx/brams[2].ram/use_tdp.ramb36/bram36_tdp_bl.bram36_tdp_bl" LOC = RAMB36_X1Y21 ;
+INST "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_bram_top/pcie_brams_tx/brams[3].ram/use_tdp.ramb36/bram36_tdp_bl.bram36_tdp_bl" LOC = RAMB36_X1Y20 ;
+###############################################################################
+# Timing Constraints
+###############################################################################
+
+NET "pcie/pcie_adapter/w_sys_clk" TNM_NET = "SYSCLK" ;
+#NET "ext_clk.pipe_clock_i/clk_125mhz" TNM_NET = "CLK_125" ;
+#NET "ext_clk.pipe_clock_i/clk_250mhz" TNM_NET = "CLK_250" ;
+#NET "ext_clk.pipe_clock_i/userclk1" TNM_NET = "CLK_USERCLK" ;
+#NET "ext_clk.pipe_clock_i/userclk2" TNM_NET = "CLK_USERCLK2" ;
+
+TIMESPEC "TS_SYSCLK"       = PERIOD "SYSCLK"        100 MHz HIGH 50 % ;
+TIMESPEC "TS_CLK_125"      = PERIOD "CLK_125"       TS_SYSCLK*1.25 HIGH 50 % PRIORITY 1;
+TIMESPEC "TS_CLK_USERCLK"  = PERIOD "CLK_USERCLK"   TS_SYSCLK*1.25 HIGH 50 %;
+TIMESPEC "TS_CLK_USERCLK2" = PERIOD "CLK_USERCLK2"  TS_SYSCLK*1.25 HIGH 50 %;
+#TIMESPEC "TS_CLK_250"    = PERIOD "CLK_250"       TS_SYSCLK*2.5 HIGH 50 % PRIORITY 2;
+
+
+
+INST "ext_clk.pipe_clock_i/mmcm_i"  LOC = MMCME2_ADV_X0Y2;
+
+PIN "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_block_i.PLPHYLNKUPN" TIG;
+PIN "pcie/pcie_adapter/pcie_top_i/pcie_7x_i/pcie_block_i.PLRECEIVEDHOTRST" TIG;
+
+PIN "ext_clk.pipe_clock_i/mmcm_i.RST" TIG ;
+NET "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/user_resetdone*" TIG;
+NET "ext_clk.pipe_clock_i/pclk_sel" TIG;
+NET "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_lane[0].pipe_rate.pipe_rate_i/*" TNM_NET = FFS "MC_PIPE";
+NET "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_lane[1].pipe_rate.pipe_rate_i/*" TNM_NET = FFS "MC_PIPE";
+NET "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_lane[2].pipe_rate.pipe_rate_i/*" TNM_NET = FFS "MC_PIPE";
+NET "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_lane[3].pipe_rate.pipe_rate_i/*" TNM_NET = FFS "MC_PIPE";
+
+TIMESPEC "TS_PIPE_RATE" = FROM "MC_PIPE" TS_CLK_USERCLK*0.5;
+
+
+NET "pcie/pcie_adapter/gt_top_i/pipe_wrapper_i/pipe_reset.pipe_reset_i/cpllreset" TIG;
+
+

@@ -1,0 +1,22 @@
+{
+    "BASE_DIR":"~/projects/ibuilder_project",
+    "board":"tx1_pcie",
+    "PROJECT_NAME":"example_project",
+    "TEMPLATE":"wishbone_template.json",
+    "SLAVES":{
+    },
+    "MEMORY":{
+    },
+    "bind":{
+        "clk":{
+            "direction":"input",
+            "loc":"clk"
+        },
+        "rst":{
+            "direction":"input",
+            "loc":"rst"
+        }
+    },
+    "constraint_files":[
+    ]
+}
