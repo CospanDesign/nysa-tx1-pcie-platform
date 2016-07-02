@@ -64,10 +64,11 @@ class Tx1PciePlatform(Platform):
         self.status.Verbose("Scanning")
         inst_dict = {}
         devs = os.listdir("/dev")
-        print "devs: %s" % str(devs)
+        #print "devs: %s" % str(devs)
         for d in devs:
-            if "ttyusb" in d:
-                inst_dict[os.path.split(d)[1]] = Tx1Pcie(d)
+            if "ttyUSB" in d:
+                path = os.path.join(os.path.sep, "dev", d)
+                inst_dict[os.path.split(d)[1]] = Tx1Pcie(path)
         #if self.status: self.status.Warning("Scan function not implemented yet!")
         return inst_dict
         #raise AssertionError("%s not implemented" % sys._getframe().f_code.co_name)

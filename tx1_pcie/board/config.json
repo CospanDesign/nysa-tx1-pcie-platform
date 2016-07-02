@@ -10,8 +10,19 @@
   "image":"",
 	"required":"required.json",
   "default_project":"default.json",
-  "invert_reset":false,
+  "invert_reset":true,
   "clockrate":100000000,
   "build_flags":{
+    "bitgen":{
+      "config":{
+        "Binary":"Yes"
+       }
+    },
+    "xst":{
+      "flags":{
+        "-sd":"{cores}",
+        "-netlist_hierarchy":"rebuilt"
+      }
+    }
   }
 }

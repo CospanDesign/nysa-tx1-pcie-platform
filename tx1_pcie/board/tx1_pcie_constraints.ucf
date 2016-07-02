@@ -1,8 +1,9 @@
 CONFIG PART = xc7k70t-fbg484-1;
 
-NET "clk"       LOC = V19 | IOSTANDARD = LVCMOS33;
-NET             "clk_BUFGP" TNM = "tnm_main_clk_group";
-TIMESPEC        "ts_clk"        = PERIOD "tnm_main_clk_group" 20.000 ns HIGH 50%;
+NET             "clk"       LOC = V19 | IOSTANDARD = LVCMOS33;
+NET             "clk_BUFGP"  TNM = "tnm_main_clk_group";
+#NET             "clk"         TNM = "tnm_main_clk_group";
+TIMESPEC        "ts_clk"        = PERIOD "tnm_main_clk_group" 10.000 ns HIGH 50%;
 
 
 NET "uart_rx"    LOC = Y18 | IOSTANDARD = LVCMOS33;

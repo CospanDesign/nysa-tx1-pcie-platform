@@ -8,28 +8,27 @@ __author__ = 'you@example.com'
 import sys
 import os
 import time
-from array import array as Array
-
-import string
 import serial
+import string
+from array import array as Array
 
 from nysa.cbuilder.sdb import SDBError
 from nysa.host.nysa import Nysa
 from nysa.host.nysa import NysaError
 from nysa.host.nysa import NysaCommError
 
+BAUDRATE = 115200
+
 class Tx1Pcie(Nysa):
 
     def __init__(self, path, status = None):
         Nysa.__init__(self, status)
         ser_path = path
-        baudrate = 115200
-        self.ser = serial.Serial(path, baudrate)
+        self.ser = serial.Serial(path, BAUDRATE)
         self.ser.timeout = 2
         self.ser.flushInput()
         if self.ser == None:
             print "Error openning Serial Port"
-
 
     def read(self, address, length = 1, disable_auto_inc = False):
         """read
@@ -48,11 +47,18 @@ class Tx1Pcie(Nysa):
         Raises:
             NysaCommError: When a failure of communication is detected
         """
-        read_cmd = "L%07X00000002%08X00000000"
-        read_cmd = (read_cmd) % (length, address)
-        self.ser.flushInput()
+        read_cmd = "L%07X%08X%08X00000000"
+        command = 0x00000002
+        if disable_auto_inc:
+            command |= 0x00020000
+
+        read_cmd = read_cmd % (command, length, address)
+        #print "Read Command: %s" % read_cmd
         self.ser.write(read_cmd)
         read_resp = self.ser.read(24 + ((length) * 8))
+        a = Array('B', read_resp)
+        #print "Length of response: %d: %s" % (len(read_resp), str(a))
+        #print "Response: %s" % read_resp
         response = Array('B')
         d = read_resp[24:]
 
@@ -80,13 +86,14 @@ class Tx1Pcie(Nysa):
             AssertionError: This function must be overriden by a board specific
                 implementation
         """
-        if not isinstance (data, list):
-            data = [data]
-        length = len(data) - 1
+        length = (len(data) / 4)
         write_cmd = "L%0.7X00000001%0.8X"
-        write_cmd = (write_cmd) % (length, address)
-        self.ser.flushInput()
+        write_cmd = write_cmd % (length, address)
+        for d in data:
+            write_cmd += "%X" % ((d >> 4) & 0xF)
+            write_cmd += "%X" % (d & 0xF)
         self.ser.write(write_cmd)
+        #self.ser.flushInput()
         write_rsp = self.ser.read(32)
 
     def ping(self):
@@ -103,9 +110,10 @@ class Tx1Pcie(Nysa):
         Raises:
           NysaCommError: When a failure of communication is detected
         """
-        self.ser.flushInput() 
+        #self.ser.flushInput() 
         self.ser.write("L0000000000000000000000000000000")
         ping_string = self.ser.read(32)
+        #print "print string: %s" % str(Array('B', ping_string))
 
     def reset(self):
         """reset
@@ -138,7 +146,7 @@ class Tx1Pcie(Nysa):
         Raises:
             NysaCommError: A failure of communication is detected
         """
-        self.s.Warning("UART Interface does not report %s" % sys._getframe().f_code.co_name)
+        #self.s.Warning("UART Interface does not report %s" % sys._getframe().f_code.co_name)
         return True
 
     def get_sdb_base_address(self):
@@ -154,8 +162,6 @@ class Tx1Pcie(Nysa):
         Raises:
             Nothing
         """
-        #raise AssertionError("%s not implemented" % sys._getframe().f_code.co_name)
-        #Normally with Nysa platform address is at adress 0x00 on the peripheral bus
         return 0x00
 
     def wait_for_interrupts(self, wait_time = 1):
@@ -193,7 +199,10 @@ class Tx1Pcie(Nysa):
         Raises:
             Nothing
         """
+        temp_timeout = self.ser.timeout
+        self.ser.timeout = wait_time
         temp_string = self.ser.read(32)
+        self.ser.timeout = temp_timeout
         if len(temp_string) == 0:
             return False
         self.interrupt_address = string.atoi(temp_string[16:24], 16)
@@ -238,7 +247,6 @@ class Tx1Pcie(Nysa):
                 Not Implemented
         """
         self.s.Warning("UART Interface does not report %s" % sys._getframe().f_code.co_name)
-        #raise AssertionError("%s not implemented" % sys._getframe().f_code.co_name)
 
     def program (self):
         """
@@ -256,7 +264,6 @@ class Tx1Pcie(Nysa):
                 Not Implemented
         """
         self.s.Warning("UART Interface does not report %s" % sys._getframe().f_code.co_name)
-        #raise AssertionError("%s not implemented" % sys._getframe().f_code.co_name)
 
     def ioctl(self, name, arg = None):
         """
@@ -280,7 +287,6 @@ class Tx1Pcie(Nysa):
         """
 
         raise AssertionError("%s not implemented" % sys._getframe().f_code.co_name)
-
 
     def list_ioctl(self):
         """
