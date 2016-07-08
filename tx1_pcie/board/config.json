@@ -3,9 +3,10 @@
   "vendor":"Cospan Design",
   "build_tool":"nothing",
   "fpga_part_number":"xc7k70t-fbg484-1",
-  "host_inteface":"uart_interface",
+  "host_interface_backup":"uart_interface",
+  "host_interface":"tx1_pcie_interface",
   "default_constraint_files":[
-    ""
+    "tx1_pcie_constraints.ucf"
     ],
   "image":"",
 	"required":"required.json",

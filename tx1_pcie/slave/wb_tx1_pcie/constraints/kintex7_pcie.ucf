@@ -120,7 +120,7 @@ INST "pcie/pcie_adapter/refclk_ibuf" LOC = IBUFDS_GTE2_X0Y0;
 # Virtex-7 GT Transceiver User Guide (UG) for more information.
 #
 # PCIe Lane 0
-INST "pcie/pcie_adapter/pcie_7x_v1_11_0_i/gt_top_i/pipe_wrapper_i/pipe_lane[0].gt_wrapper_i/gtx_channel.gtxe2_channel_i" LOC = GTXE2_CHANNEL_X0Y0;
+INST "pcie/pcie_adapter/pcie_7x_v1_11_0_i/gt_top_i/pipe_wrapper_i/pipe_lane[0].gt_wrapper_i/gtxe2_channel_i" LOC = GTXE2_CHANNEL_X0Y0;
 
 
 #
@@ -146,10 +146,10 @@ INST "pcie/pcie_adapter/pcie_7x_v1_11_0_i/pcie_top_i/pcie_7x_i/pcie_bram_top/pci
 ###############################################################################
 
 NET "pcie/pcie_adapter/sys_clk" TNM_NET = "SYSCLK" ;
-NET "pcie/pcie_adapter/ext_clk.pipe_clock_i/clk_125mhz" TNM_NET = "CLK_125" ;
-NET "pcie/pcie_adapter/ext_clk.pipe_clock_i/clk_250mhz" TNM_NET = "CLK_250" ;
-NET "pcie/pcie_adapter/ext_clk.pipe_clock_i/userclk1"   TNM_NET = "CLK_USERCLK" ;
-NET "pcie/pcie_adapter/ext_clk.pipe_clock_i/userclk2"   TNM_NET = "CLK_USERCLK2" ;
+NET "pcie/pcie_adapter/pipe_clock_i/clk_125mhz" TNM_NET = "CLK_125" ;
+NET "pcie/pcie_adapter/pipe_clock_i/clk_250mhz" TNM_NET = "CLK_250" ;
+NET "pcie/pcie_adapter/pipe_clock_i/userclk1"   TNM_NET = "CLK_USERCLK" ;
+NET "pcie/pcie_adapter/pipe_clock_i/userclk2"   TNM_NET = "CLK_USERCLK2" ;
 
 TIMESPEC "TS_SYSCLK"        = PERIOD "SYSCLK"       100 MHz         HIGH 50 % ;
 TIMESPEC "TS_CLK_125"       = PERIOD "CLK_125"      TS_SYSCLK*1.25  HIGH 50 % PRIORITY 1;
@@ -159,14 +159,14 @@ TIMESPEC "TS_CLK_USERCLK2"  = PERIOD "CLK_USERCLK2" TS_SYSCLK/1.6   HIGH 50 %;
 
 
 
-INST "pcie/pcie_adapter/ext_clk.pipe_clock_i/mmcm_i"  LOC = MMCME2_ADV_X0Y2;
+INST "pcie/pcie_adapter/pipe_clock_i/mmcm_i"  LOC = MMCME2_ADV_X0Y2;
 
 PIN "pcie/pcie_adapter/pcie_7x_v1_11_0_i/pcie_top_i/pcie_7x_i/pcie_block_i.PLPHYLNKUPN" TIG;
 PIN "pcie/pcie_adapter/pcie_7x_v1_11_0_i/pcie_top_i/pcie_7x_i/pcie_block_i.PLRECEIVEDHOTRST" TIG;
 
-PIN "pcie/pcie_adapter/ext_clk.pipe_clock_i/mmcm_i.RST" TIG ;
+PIN "pcie/pcie_adapter/pipe_clock_i/mmcm_i.RST" TIG ;
 NET "pcie/pcie_adapter/pcie_7x_v1_11_0_i/gt_top_i/pipe_wrapper_i/user_resetdone*" TIG;
-NET "pcie/pcie_adapter/ext_clk.pipe_clock_i/pclk_sel" TIG;
+NET "pcie/pcie_adapter/pipe_clock_i/pclk_sel" TIG;
 NET "pcie/pcie_adapter/pcie_7x_v1_11_0_i/gt_top_i/pipe_wrapper_i/pipe_lane[0].pipe_rate.pipe_rate_i/*" TNM_NET = FFS "MC_PIPE";
 
 TIMESPEC "TS_PIPE_RATE" = FROM "MC_PIPE" TS_CLK_USERCLK*0.5;
@@ -174,22 +174,22 @@ TIMESPEC "TS_PIPE_RATE" = FROM "MC_PIPE" TS_CLK_USERCLK*0.5;
 
 #NET "pcie/pcie_adapter/pcie_7x_v1_11_0_i/gt_top_i/pipe_wrapper_i/pipe_reset.pipe_reset_i/cpllreset" TIG;
 
-NET o_pcie_wake_n    LOC=D19 | IOSTANDARD = LVCMOS33;
+NET "i_pcie_wake_n"       LOC=D19 | IOSTANDARD = LVCMOS33;
+                        
+NET "i_pcie_reset_n"      TIG;
+NET "i_pcie_reset_n"      LOC=D20 | IOSTANDARD = LVCMOS33 | PULLUP | NODELAY ;
+NET "o_pcie_clkreq"       LOC=E19 | IOSTANDARD = LVCMOS33;
 
-NET "i_pcie_reset_n" TIG;
-NET "i_pcie_reset_n" LOC=D20 | IOSTANDARD = LVCMOS33 | PULLUP | NODELAY ;
-NET "o_pcie_clkreq"  LOC=E19 | IOSTANDARD = LVCMOS33;
 
 
+NET "i_pcie_phy_clk_p"    LOC=D6 | IOB = FALSE;
+NET "i_pcie_phy_clk_n"    LOC=D5 | IOB = FALSE;
 
-NET "i_pcie_phy_clk_p" LOC=D6 | IOB = FALSE;
-NET "i_pcie_phy_clk_n" LOC=D5 | IOB = FALSE;
+NET "i_pcie_phy_rx_p"     LOC=G4 | IOB = FALSE;
+NET "i_pcie_phy_rx_n"     LOC=G3 | IOB = FALSE;
 
-NET "i_pcie_phy_rx_p" LOC=G4 | IOB = FALSE;
-NET "i_pcie_phy_rx_n" LOC=G3 | IOB = FALSE;
-
-NET "o_pcie_phy_tx_p" LOC=F2 | IOB = FALSE;
-NET "o_pcie_phy_tx_n" LOC=F1 | IOB = FALSE;
+NET "o_pcie_phy_tx_p"     LOC=F2 | IOB = FALSE;
+NET "o_pcie_phy_tx_n"     LOC=F1 | IOB = FALSE;
 
 
 
