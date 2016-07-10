@@ -9,7 +9,7 @@ module pcie_data_ingress(
   input   [63:0]  S00_AXIS_TDATA,
   input   [7:0]   S00_AXIS_TKEEP,
   input           S00_AXIS_TLAST,
-  output  [31:0]  S00_FIFO_DATA_COUNT,
+//  output  [31:0]  S00_FIFO_DATA_COUNT,
 
   input           M00_AXIS_ACLK,
   input           M00_AXIS_ARESETN,

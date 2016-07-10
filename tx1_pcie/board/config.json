@@ -16,7 +16,8 @@
   "build_flags":{
     "bitgen":{
       "config":{
-        "Binary":"Yes"
+        "Binary":"Yes",
+        "SPI_buswidth":"4"
        }
     },
     "xst":{

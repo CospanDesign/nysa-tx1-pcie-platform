@@ -512,6 +512,9 @@ always @ (posedge clk) begin
         if (!o_axi_ingress_ready) begin
           state                       <=  IDLE;
         end
+        if (!i_axi_ingress_valid) begin
+          o_axi_ingress_ready         <=  0;
+        end
       end
       READ_BAR_ADDR: begin
         o_enable_config_read          <=  1;
@@ -525,10 +528,10 @@ always @ (posedge clk) begin
         state                         <=  IDLE;
       end
     endcase
-
-    if (i_axi_ingress_last) begin
-      o_axi_ingress_ready             <=  0;
-    end
+    //if (i_axi_ingress_last) begin
+    //  o_axi_ingress_ready             <=  0;
+    //end
+    
   end
 end
 

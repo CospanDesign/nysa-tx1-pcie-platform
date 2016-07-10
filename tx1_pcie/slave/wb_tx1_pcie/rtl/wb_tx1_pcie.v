@@ -138,8 +138,8 @@ module wb_tx1_pcie #(
   // Tx
   output              o_pcie_exp_tx_p,
   output              o_pcie_exp_tx_n,
-                    
-  // Rx             
+
+  // Rx
   input               i_pcie_exp_rx_p,
   input               i_pcie_exp_rx_n,
 
@@ -197,7 +197,7 @@ wire        [31:0]      w_out_address;
 wire        [31:0]      w_out_data;
 wire        [27:0]      w_out_data_count;
 wire                    w_master_ready;
-            
+
 wire                    w_in_ready;
 wire        [31:0]      w_in_command;
 wire        [31:0]      w_in_address;
@@ -211,13 +211,46 @@ wire        [31:0]      w_command_value;
 wire        [31:0]      w_count_value;
 wire        [31:0]      w_address_value;
 
+wire        [63:0]      m64_axis_rx_tdata;
+wire        [7:0]       m64_axis_rx_tkeep;
+wire                    m64_axis_rx_tlast;
+wire                    m64_axis_rx_tvalid;
+wire                    m64_axis_rx_tready;
+wire        [21:0]      m_axis_rx_tuser;
+
+wire        [31:0]      m32_axis_rx_tdata;
+wire        [3:0]       m32_axis_rx_tkeep;
+wire                    m32_axis_rx_tlast;
+wire                    m32_axis_rx_tvalid;
+wire                    m32_axis_rx_tready;
+
+wire                    s64_axis_tx_tready;
+wire        [63:0]      s64_axis_tx_tdata;
+wire        [7:0]       s64_axis_tx_tkeep;
+wire                    s64_axis_tx_tlast;
+wire                    s64_axis_tx_tvalid;
+            
+wire                    s32_axis_tx_tready;
+wire        [31:0]      s32_axis_tx_tdata;
+wire        [3:0]       s32_axis_tx_tkeep;
+wire                    s32_axis_tx_tlast;
+wire                    s32_axis_tx_tvalid;
+
+
+
+wire        [3:0]       ingress_state;
+wire        [3:0]       controller_state;
+
+
+
+
 //Submodules
 tx1_pcie_adapter pcie_adapter (
   .clk                      (clk                          ),
   .rst                      (rst                          ),
   .o_user_link_up           (w_user_link_up               ),
   .o_sys_rst                (w_sys_rst                    ),
-                                                          
+
   /******************************************
   * Debug Interface                         *
   ******************************************/
@@ -226,16 +259,16 @@ tx1_pcie_adapter pcie_adapter (
   .o_pl_ltssm_state         (w_pl_ltssm_state             ),
   .pipe_rx0_status_gt       (pipe_rx0_status_gt           ),
   .pipe_rx0_phy_status_gt   (pipe_rx0_phy_status_gt       ),
-                                                          
+
   .o_clock_locked           (w_clock_locked               ),
   .o_clk_in_stopped         (o_clk_in_stopped             ),
-                                                          
+
   .i_tx_diff_ctr            (w_tx_diff_ctr                ),
-                                                          
+
   .o_pl_sel_lnk_rate        (w_pl_sel_lnk_rate            ),
   .o_pl_sel_lnk_width       (w_pl_sel_lnk_width           ),
   .o_pl_initial_link_width  (w_pl_initial_link_width      ),
-                                                          
+
 /*
   .o_cfg_status             (w_cfg_status                 ),
   .o_cfg_command            (w_cfg_command                ),
@@ -246,31 +279,65 @@ tx1_pcie_adapter pcie_adapter (
   .o_cfg_dcommand2          (w_cfg_dcommand2              ),
   .o_cfg_pcie_link_state    (w_cfg_pcie_link_state        ),
 */
-                                                          
+
+  .m64_axis_rx_tdata       (m64_axis_rx_tdata             ),
+  .m64_axis_rx_tkeep       (m64_axis_rx_tkeep             ),
+  .m64_axis_rx_tlast       (m64_axis_rx_tlast             ),
+  .m64_axis_rx_tvalid      (m64_axis_rx_tvalid            ),
+  .m64_axis_rx_tready      (m64_axis_rx_tready            ),
+  .m_axis_rx_tuser         (maxis_rx_tuser                ),
+
+
+
+  .m32_axis_rx_tdata       (m32_axis_rx_tdata             ),
+  .m32_axis_rx_tkeep       (m32_axis_rx_tkeep             ),
+  .m32_axis_rx_tlast       (m32_axis_rx_tlast             ),
+  .m32_axis_rx_tvalid      (m32_axis_rx_tvalid            ),
+  .m32_axis_rx_tready      (m32_axis_rx_tready            ),
+
+
+  .s64_axis_tx_tdata       (s64_axis_tx_tdata             ),
+  .s64_axis_tx_tkeep       (s64_axis_tx_tkeep             ),
+  .s64_axis_tx_tlast       (s64_axis_tx_tlast             ),
+  .s64_axis_tx_tvalid      (s64_axis_tx_tvalid            ),
+  .s64_axis_tx_tready      (s64_axis_tx_tready            ),
+                                                        
+  .s32_axis_tx_tdata       (s32_axis_tx_tdata             ),
+  .s32_axis_tx_tkeep       (s32_axis_tx_tkeep             ),
+  .s32_axis_tx_tlast       (s32_axis_tx_tlast             ),
+  .s32_axis_tx_tvalid      (s32_axis_tx_tvalid            ),
+  .s32_axis_tx_tready      (s32_axis_tx_tready            ),
+
+
+
+
+  .o_ingress_state         (ingress_state                 ),
+  .o_controller_state      (controller_state              ),
+
 
   /******************************************
   * PCIE Phy Interface                      *
   ******************************************/
 
-  // Tx                                                   
+  // Tx
   .o_pcie_exp_tx_p          (o_pcie_exp_tx_p              ),
   .o_pcie_exp_tx_n          (o_pcie_exp_tx_n              ),
-                                                          
-  // Rx                                                   
+
+  // Rx
   .i_pcie_exp_rx_p          (i_pcie_exp_rx_p              ),
   .i_pcie_exp_rx_n          (i_pcie_exp_rx_n              ),
-                                                          
+
   .i_pcie_clk_p             (i_pcie_clk_p                 ),
   .i_pcie_clk_n             (i_pcie_clk_n                 ),
-                                                          
+
   .o_rx_data                (w_rx_data                    ),
   .o_rx_data_k              (w_rx_data_k                  ),
-                                                          
+
   .o_rx_byte_is_comma       (w_rx_byte_is_comma           ),
   .o_rx_byte_is_aligned     (w_rx_byte_is_aligned         ),
-                                                          
-                                                          
-  //PCIE Control control                                  
+
+
+  //PCIE Control control
   .i_pcie_reset_n           (i_pcie_reset_n               ),
   .o_pcie_clkreq            (o_pcie_clkreq                ),
 
@@ -315,6 +382,9 @@ tx1_pcie_adapter pcie_adapter (
 assign  o_lax_clk   = w_lax_clk;
 
 //Asynchronous Logic
+
+/*
+//LINKUP Debug
 assign  o_debug[15:0]   = w_rx_data;
 assign  o_debug[17:16]  = w_rx_data_k;
 assign  o_debug[20:18]  = pipe_rx0_status_gt;
@@ -324,6 +394,41 @@ assign  o_debug[29:24]  = w_pl_ltssm_state;
 //assign  o_debug[31:30]  = w_rx_byte_is_aligned;
 assign  o_debug[30]     = w_rx_byte_is_aligned;
 assign  o_debug[31]     = w_clock_locked;
+*/
+
+/*
+//PCIE Comm Incomming Debug
+//assign  o_debug[15:0]   = m64_axis_rx_tdata[15:0];
+assign  o_debug[15:0]   = m32_axis_rx_tdata[15:0];
+assign  o_debug[19:16]  = m32_axis_rx_tkeep[3:0];
+assign  o_debug[20]     = m32_axis_rx_tvalid;
+assign  o_debug[21]     = m32_axis_rx_tready;
+assign  o_debug[22]     = m32_axis_rx_tlast;
+assign  o_debug[23]     = 1'b0;
+
+assign  o_debug[27:24]  = ingress_state;
+assign  o_debug[31:28]  = controller_state;
+*/
+/*
+assign  o_debug[28]     = m32_axis_rx_tvalid;
+assign  o_debug[29]     = m32_axis_rx_tready;
+assign  o_debug[30]     = m32_axis_rx_tlast;
+assign  o_debug[31]     = 1'b0;
+*/
+
+assign  o_debug[15:0]   = s64_axis_tx_tdata[15:0];
+//assign  o_debug[15:0]   = s32_axis_tx_tdata[15:0];
+assign  o_debug[19:16]  = s64_axis_tx_tkeep[3:0];
+assign  o_debug[20]     = s64_axis_tx_tvalid;
+assign  o_debug[21]     = s64_axis_tx_tready;
+assign  o_debug[22]     = s64_axis_tx_tlast;
+assign  o_debug[23]     = 1'b0;
+
+assign  o_debug[27:24]  = ingress_state;
+assign  o_debug[31:28]  = controller_state;
+
+
+
 
 //assign  o_pcie_reset    = w_user_reset_out;
 assign  o_pcie_reset    = w_sys_rst;
