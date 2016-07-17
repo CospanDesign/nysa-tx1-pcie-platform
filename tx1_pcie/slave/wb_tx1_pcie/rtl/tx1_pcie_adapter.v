@@ -84,7 +84,7 @@ module tx1_pcie_adapter #(
   output        [7:0]       s64_axis_tx_tkeep,
   output                    s64_axis_tx_tlast,
   output                    s64_axis_tx_tvalid,
-                
+
   output                    s32_axis_tx_tready,
   output        [31:0]      s32_axis_tx_tdata,
   output        [3:0]       s32_axis_tx_tkeep,
@@ -92,6 +92,7 @@ module tx1_pcie_adapter #(
   output                    s32_axis_tx_tvalid,
 
   output        [3:0]       o_ingress_state,
+  output        [3:0]       o_egress_state,
   output        [3:0]       o_controller_state,
 
   /******************************************
@@ -234,6 +235,7 @@ wire                                        m32_axis_rx_tlast;
 wire                                        m32_axis_rx_tvalid;
 wire                                        m32_axis_rx_tready;
 */
+reg [21:0]                                  m32_axis_rx_tuser;
 
 wire                                        rx_np_ok;
 wire                                        rx_np_req;
@@ -406,7 +408,7 @@ wire                        w_egress_enable;
 wire                        w_egress_finished;
 wire  [7:0]                 w_egress_tlp_command;
 wire  [13:0]                w_egress_tlp_flags;
-wire  [31:0]                w_egress_tlp_address;
+wire  [63:0]                w_egress_tlp_address;
 wire  [15:0]                w_egress_tlp_requester_id;
 wire  [7:0]                 w_egress_tag;
 
@@ -537,9 +539,9 @@ pcie_7x_v1_11_0_pipe_clock #
     .PCIE_ASYNC_EN                  ("FALSE"                ),     // PCIe async enable
     .PCIE_TXBUF_EN                  ("FALSE"                ),     // PCIe TX buffer enable for Gen1/Gen2 only
     .PCIE_LANE                      (6'h01                  ),     // PCIe number of lanes
-    // synthesis translate_off                              
+    // synthesis translate_off
     .PCIE_LINK_SPEED                (2                      ),
-    // synthesis translate_on                               
+    // synthesis translate_on
     .PCIE_REFCLK_FREQ               (0                      ),     // PCIe reference clock frequency
     .PCIE_USERCLK1_FREQ             (USER_CLK_FREQ +1       ),     // PCIe user clock 1 frequency
     .PCIE_USERCLK2_FREQ             (USERCLK2_FREQ +1       ),     // PCIe user clock 2 frequency
@@ -547,7 +549,6 @@ pcie_7x_v1_11_0_pipe_clock #
 )
 pipe_clock_i
 (
-
     //---------- Input ------------------------------------
     .CLK_CLK                        (sys_clk                ),
     .CLK_TXOUTCLK                   (PIPE_TXOUTCLK_OUT      ),     // Reference clock from lane 0
@@ -567,7 +568,6 @@ pipe_clock_i
     .CLK_USERCLK2                   (PIPE_USERCLK2_IN       ),
     .CLK_MMCM_LOCK                  (PIPE_MMCM_LOCK_IN      ),
     .o_clk_in_stopped               (o_clk_in_stopped       )
-
 );
 
 
@@ -585,8 +585,8 @@ pcie_7x_v1_11_0 #(
   // Tx
   .pci_exp_txn                      (pci_exp_txn                   ),
   .pci_exp_txp                      (pci_exp_txp                   ),
-                                                                   
-  // Rx                                                            
+
+  // Rx
   .pci_exp_rxn                      (pci_exp_rxn                   ),
   .pci_exp_rxp                      (pci_exp_rxp                   ),
 
@@ -601,7 +601,7 @@ pcie_7x_v1_11_0 #(
   .PIPE_OOBCLK_IN                   (PIPE_OOBCLK_IN                ),
   .PIPE_USERCLK2_IN                 (PIPE_USERCLK2_IN              ),
   .PIPE_MMCM_LOCK_IN                (PIPE_MMCM_LOCK_IN             ),
-                                                                   
+
   .PIPE_TXOUTCLK_OUT                (PIPE_TXOUTCLK_OUT             ),
   .PIPE_RXOUTCLK_OUT                (PIPE_RXOUTCLK_OUT             ),
   .PIPE_PCLK_SEL_OUT                (PIPE_PCLK_SEL_OUT             ),
@@ -628,10 +628,10 @@ pcie_7x_v1_11_0 #(
   .s_axis_tx_tuser                  (s_axis_tx_tuser               ),
   .s_axis_tx_tlast                  (s64_axis_tx_tlast             ),
   .s_axis_tx_tvalid                 (s64_axis_tx_tvalid            ),
-                                                                   
+
   .tx_cfg_gnt                       (tx_cfg_gnt                    ),
-                                                                   
-  // Rx                                                            
+
+  // Rx
   .m_axis_rx_tdata                  (m64_axis_rx_tdata             ),
   .m_axis_rx_tkeep                  (m64_axis_rx_tkeep             ),
   .m_axis_rx_tlast                  (m64_axis_rx_tlast             ),
@@ -640,8 +640,8 @@ pcie_7x_v1_11_0 #(
   .m_axis_rx_tuser                  (m_axis_rx_tuser               ),
   .rx_np_ok                         (rx_np_ok                      ),
   .rx_np_req                        (rx_np_req                     ),
-                                                                   
-  // Flow Control                                                  
+
+  // Flow Control
   .fc_cpld                          (fc_cpld                       ),
   .fc_cplh                          (fc_cplh                       ),
   .fc_npd                           (fc_npd                        ),
@@ -667,13 +667,13 @@ pcie_7x_v1_11_0 #(
   .cfg_dcommand                     (o_cfg_dcommand                ),
   .cfg_lcommand                     (o_cfg_lcommand                ),
   .cfg_dcommand2                    (o_cfg_dcommand2               ),
-                                                                   
+
   .cfg_pmcsr_pme_en                 (                              ),
   .cfg_pmcsr_powerstate             (                              ),
   .cfg_pmcsr_pme_status             (                              ),
   .cfg_received_func_lvl_rst        (                              ),
-                                                                   
-  // Management Interface                                          
+
+  // Management Interface
   .cfg_mgmt_do                      (cfg_mgmt_do                   ),
   .cfg_mgmt_rd_wr_done              (cfg_mgmt_rd_wr_done           ),
   .cfg_mgmt_di                      (cfg_mgmt_di                   ),
@@ -850,27 +850,6 @@ pcie_7x_v1_11_0 #(
 );
 
 //AXI 64-bit -> 32-bit Ingress Bridge
-
-/*
-pcie_64_to_32_axi #(
-  .ADDRESS_WIDTH            (6                   )
-) axi_ingress_64_32_conv(                                               
-  .clk                      (user_clk            ),
-  .rst                      (o_sys_rst           ),
-                            
-                            
-  .i_64_data                (m64_axis_rx_tdata   ),
-  .i_64_valid               (m64_axis_rx_tvalid  ),
-  .i_64_last                (m64_axis_rx_tlast   ),
-  .o_64_ready               (m64_axis_rx_tready  ),
-                            
-  .o_32_data                (m32_axis_rx_tdata   ),
-  .o_32_valid               (m32_axis_rx_tvalid  ),
-  .o_32_last                (m32_axis_rx_tlast   ),
-  .i_32_ready               (m32_axis_rx_tready  )
-);
-*/
-
 pcie_data_ingress axi_ingress_64_32_conv (
   .ACLK                                       (user_clk                   ), // input ACLK
   .ARESETN                                    (!o_sys_rst                 ), // input ARESETN
@@ -880,7 +859,9 @@ pcie_data_ingress axi_ingress_64_32_conv (
   .S00_AXIS_TVALID                            (m64_axis_rx_tvalid         ), // input S00_AXIS_TVALID
   .S00_AXIS_TREADY                            (m64_axis_rx_tready         ), // output S00_AXIS_TREADY
   .S00_AXIS_TDATA                             (m64_axis_rx_tdata          ), // input [63 : 0] S00_AXIS_TDATA
+//  .S00_AXIS_TDATA                             ({m64_axis_rx_tdata[31:0], m64_axis_rx_tdata[63:32]          }), // input [63 : 0] S00_AXIS_TDATA
   .S00_AXIS_TKEEP                             (m64_axis_rx_tkeep          ), // input [7 : 0] S00_AXIS_TKEEP
+//  .S00_AXIS_TKEEP                             ({m64_axis_rx_tkeep[3:0], m64_axis_rx_tkeep[7:4]          }), // input [7 : 0] S00_AXIS_TKEEP
   .S00_AXIS_TLAST                             (m64_axis_rx_tlast          ), // input S00_AXIS_TLAST
 //  .S00_FIFO_DATA_COUNT                        (                           ), // output [31 : 0] S00_FIFO_DATA_COUNT
 
@@ -894,6 +875,27 @@ pcie_data_ingress axi_ingress_64_32_conv (
 );
 
 //AXI 32-bit -> 64-bit Ingress Bridge
+pcie_32_to_64_axi #(
+  .FIFO_DEPTH                                 (7                          )
+)axi_ingress_32_64_conv(
+  .clk                                        (user_clk                   ),
+  .rst                                        (o_sys_rst                  ),
+
+  //Input
+  .i_32_keep                                  (4'hF                       ),
+  .i_32_data                                  (s32_axis_tx_tdata          ),
+  .i_32_valid                                 (s32_axis_tx_tvalid         ),
+  .i_32_last                                  (s32_axis_tx_tlast          ),
+  .o_32_ready                                 (s32_axis_tx_tready         ),
+
+  .o_64_data                                  (s64_axis_tx_tdata          ),
+  .o_64_keep                                  (s64_axis_tx_tkeep          ),
+  .o_64_valid                                 (s64_axis_tx_tvalid         ),
+  .o_64_last                                  (s64_axis_tx_tlast          ),
+  .i_64_ready                                 (s64_axis_tx_tready         )
+);
+
+/*
 pcie_data_egress axi_egress_32_64_conv (
   .ACLK                                       (user_clk                   ), // input ACLK
   .ARESETN                                    (!o_sys_rst                 ), // input ARESETN
@@ -905,7 +907,7 @@ pcie_data_egress axi_egress_32_64_conv (
   .S00_AXIS_TDATA                             (s32_axis_tx_tdata          ), // input [31 : 0] S00_AXIS_TDATA
   .S00_AXIS_TKEEP                             (s32_axis_tx_tkeep          ), // input [3 : 0] S00_AXIS_TKEEP
   .S00_AXIS_TLAST                             (s32_axis_tx_tlast          ), // input S00_AXIS_TLAST
-  .S00_FIFO_DATA_COUNT                        (                           ), // output [31 : 0] S00_FIFO_DATA_COUNT
+//  .S00_FIFO_DATA_COUNT                        (                           ), // output [31 : 0] S00_FIFO_DATA_COUNT
 
   .M00_AXIS_ACLK                              (user_clk                   ), // input M00_AXIS_ACLK
   .M00_AXIS_ARESETN                           (!o_sys_rst                 ), // input M00_AXIS_ARESETN
@@ -913,17 +915,15 @@ pcie_data_egress axi_egress_32_64_conv (
   .M00_AXIS_TREADY                            (s64_axis_tx_tready         ), // input M00_AXIS_TREADY
   .M00_AXIS_TDATA                             (s64_axis_tx_tdata          ), // output [63 : 0] M00_AXIS_TDATA
   .M00_AXIS_TKEEP                             (s64_axis_tx_tkeep          ), // output [7 : 0] M00_AXIS_TKEEP
+//  .M00_AXIS_TDATA                             ({s64_axis_tx_tdata[31:0], s64_axis_tx_tdata[63:32]}), // output [63 : 0] M00_AXIS_TDATA
+//  .M00_AXIS_TKEEP                             ({s64_axis_tx_tkeep[3:0],  s64_axis_tx_tkeep[7:4]}), // output [7 : 0] M00_AXIS_TKEEP
   .M00_AXIS_TLAST                             (s64_axis_tx_tlast          )  // output M00_AXIS_TLAST
 );
+*/
 
 /****************************************************************************
 * Adapted PCIE Controller                                                   *
-*                                                                           *
-*                                                                           *
-*                                                                           *
-*                                                                           *
 ****************************************************************************/
-
 cross_clock_enable rd_fin_en (
   .rst                        (o_sys_rst                   ),
   .in_en                      (i_read_fin                  ),
@@ -931,7 +931,6 @@ cross_clock_enable rd_fin_en (
   .out_clk                    (user_clk                    ),
   .out_en                     (w_rd_fin                    )
 );
-
 cross_clock_enable wr_fin_en (
   .rst                        (o_sys_rst                   ),
   .in_en                      (i_write_fin                 ),
@@ -954,7 +953,6 @@ config_parser cfg (
   .i_cfg_rd_wr_done           (cfg_mgmt_rd_wr_done        ),
   .o_cfg_dwaddr               (cfg_mgmt_dwaddr            ),
   .o_cfg_rd_en                (cfg_mgmt_rd_en             ),
-
 
   .o_bar_addr0                (o_bar_addr0                ),
   .o_bar_addr1                (o_bar_addr1                ),
@@ -988,7 +986,6 @@ buffer_builder #(
   .o_write_stb                (w_i_data_fifo_stb          ),
   .o_write_data               (w_i_data_fifo_data         )
 );
-
 
 credit_manager cm (
   .clk                        (user_clk                   ),
@@ -1327,6 +1324,8 @@ pcie_egress egress (
   .i_fifo_size                (w_egress_fifo_size         ),
   .i_fifo_data                (w_egress_fifo_data         ),
   .o_fifo_stb                 (w_egress_fifo_stb          ),
+
+  .o_state                    (o_egress_state             ),
   .dbg_ready_drop             (dbg_ready_drop             )
 );
 
@@ -1375,8 +1374,8 @@ assign s_axis_tx_tuser              = {s_axis_tx_discont,
                                         s_axis_tx_s6_not_used};
 
 //Use this BAR Hist because it is buffered with the AXI transaction
-assign o_bar_hit                    = m_axis_rx_tuser[8:2];
-assign dbg_rerrfwd                  = m_axis_rx_tuser[1];
+assign o_bar_hit                    = m32_axis_rx_tuser[8:2];
+assign dbg_rerrfwd                  = m32_axis_rx_tuser[1];
 
 
 /****************************************************************************
@@ -1469,6 +1468,18 @@ assign  sys_clk_p                       = i_pcie_clk_p;
 assign  sys_clk_n                       = i_pcie_clk_n;
 
 assign  o_clock_locked                  = PIPE_MMCM_LOCK_IN;
-assign  o_lax_clk                       = PIPE_RXUSRCLK_IN;
+//assign  o_lax_clk                       = PIPE_RXUSRCLK_IN;
+assign  o_lax_clk                       = user_clk;
+
+always @ (posedge user_clk) begin
+  if (user_reset) begin
+    m32_axis_rx_tuser                   <=  0;
+  end
+  else begin
+    if (m64_axis_rx_tvalid) begin
+      m32_axis_rx_tuser                 <= m_axis_rx_tuser;
+    end
+  end
+end
 
 endmodule

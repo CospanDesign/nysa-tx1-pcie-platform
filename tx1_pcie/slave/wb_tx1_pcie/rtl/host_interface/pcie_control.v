@@ -103,7 +103,7 @@ module pcie_control (
   input                     i_egress_finished,
   output      [7:0]         o_egress_tlp_command,
   output      [13:0]        o_egress_tlp_flags,
-  output      [31:0]        o_egress_tlp_address,
+  output      [63:0]        o_egress_tlp_address,
   output      [15:0]        o_egress_tlp_requester_id,
   output      [7:0]         o_egress_tag,
 
@@ -216,11 +216,11 @@ reg   [1:0]                 r_tmp_done;
 reg                         r_send_data_en;
 reg                         r_delay_stb;
 
-reg   [7:0]                 r_tlp_command;          //XXX: When send to host MWR, when get from host MRD
+reg   [7:0]                 r_tlp_command;
 reg   [13:0]                r_tlp_flags;
-reg   [31:0]                r_tlp_address;          //XXX: Need to figure out this!
-reg   [15:0]                r_tlp_requester_id;     //XXX: Need to figure out this!
-reg   [7:0]                 r_tlp_tag;              //XXX: Need to figure out this!
+reg   [31:0]                r_tlp_address;
+reg   [15:0]                r_tlp_requester_id;
+reg   [7:0]                 r_tlp_tag;
 
 reg                         r_send_cfg_en;
 reg                         r_send_cfg_fin;
@@ -311,27 +311,19 @@ assign  w_comm_status[`STATUS_BIT_MEM           ] = o_mem_sel;
 assign  w_comm_status[`STATUS_BIT_DMA           ] = o_dma_sel;
 assign  w_comm_status[`STATUS_BIT_INTERRUPT     ] = r_sts_interrupt;
 
-
-
-
 assign  o_sys_rst                           = i_cmd_rst_stb;
 
-assign  o_data_fifo_sel                     = (!r_cfg_chan_en) ? (o_per_sel || o_mem_sel || o_dma_sel): 1'b0;
+assign  o_data_fifo_sel                     = r_cfg_chan_en ? 1'b0 : (o_per_sel || o_mem_sel || o_dma_sel);
 assign  o_egress_enable                     = r_cfg_chan_en || r_send_data_en;
-assign  o_egress_tlp_command                = (r_cfg_chan_en) ? `PCIE_MWR_32B:
+assign  o_egress_tlp_command                = r_cfg_chan_en ? `PCIE_MWR_64B:
                                                                 r_tlp_command;
-
-assign  o_egress_tlp_flags                  = (r_cfg_chan_en) ? (`FLAG_NORMAL):
-                                                                r_tlp_flags;
-assign  o_egress_tlp_address                = (r_cfg_chan_en) ? i_status_addr:
-                                                                r_tlp_address;
-//assign  o_egress_tlp_requester_id           = (r_cfg_chan_en) ? 16'h0:
-//                                                                r_tlp_requester_id;
+assign  o_egress_tlp_flags                  = r_cfg_chan_en ? `FLAG_NORMAL:
+                                                              r_tlp_flags;
+assign  o_egress_tlp_address                = r_cfg_chan_en ? {32'h00000001, i_status_addr}:
+                                                              {32'h00000001, r_tlp_address};
 
 assign  o_egress_tlp_requester_id           = {i_pcie_bus_num, i_pcie_dev_num, i_pcie_fun_num};
-assign  o_egress_tag                        = (r_cfg_chan_en) ? 8'h0:
-                                                                r_tlp_tag;
-
+assign  o_egress_tag                        = r_tlp_tag;
 
 assign  r_cfg_ready                         = (cfg_state != IDLE);
 assign  o_cfg_sm_state                      = cfg_state;
@@ -346,7 +338,7 @@ assign  w_sts_flg_fifo_stall                = (state == WAIT_FOR_FPGA_EGRESS_FIF
 
 
 assign  w_valid_bus_select                  = (i_cmd_flg_sel_periph || i_cmd_flg_sel_memory || i_cmd_flg_sel_dma);
-assign  w_cfg_req                           = (r_sts_unknown_cmd || r_sts_ping || r_sts_interrupt || r_sts_read_cfg);
+assign  w_cfg_req                           = (r_sts_unknown_cmd    || r_sts_ping           || r_sts_interrupt    || r_sts_read_cfg);
 
 //synchronous logic
 always @ (posedge clk) begin
@@ -494,12 +486,10 @@ always @ (posedge clk) begin
         end
       end
 
-
-
       //Egress Flow
       EGRESS_DATA_FLOW: begin
-        r_tlp_command                   <=  `PCIE_MWR_32B;
-        r_tlp_flags                     <=  (`FLAG_NORMAL);
+        r_tlp_command                   <=  `PCIE_MWR_64B;
+        r_tlp_flags                     <=  `FLAG_NORMAL;
         //if (r_data_count < o_data_size) begin
         if (!i_read_fin) begin
           //More data to send
@@ -576,8 +566,6 @@ always @ (posedge clk) begin
         end
       end
 
-
-
       //Ingress Flow
       INGRESS_PREPARE: begin
         if (w_ingress_count_left < i_buf_max_size) begin
@@ -590,7 +578,7 @@ always @ (posedge clk) begin
       end
       INGRESS_DATA_FLOW: begin
         o_ibm_en                        <= 1;
-        r_tlp_command                   <= `PCIE_MRD_32B;
+        r_tlp_command                   <= `PCIE_MRD_64B;
         r_tlp_flags                     <= `FLAG_NORMAL;
         if (r_data_count < o_data_size) begin
           //More data to send
@@ -659,10 +647,6 @@ always @ (posedge clk) begin
           state                         <= INGRESS_DATA_FLOW;
         end
       end
-
-
-
-
 
       //At the end of a transaction send the final status
       SEND_CONFIG: begin
@@ -770,6 +754,7 @@ always @ (posedge clk) begin
         end
       end
       default: begin
+        cfg_state                       <=  IDLE;
       end
     endcase
   end

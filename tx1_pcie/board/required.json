@@ -15,8 +15,7 @@
         "kintex7_pcie.ucf"
       ],
       "cores":[
-        "pcie_data_ingress.ngc",
-        "pcie_data_egress.ngc"
+        "pcie_data_ingress.ngc"
       ],
       "bind":{
         "o_pcie_exp_tx_p":{

@@ -83,7 +83,7 @@ SOFTWARE.
 module wb_tx1_pcie #(
   parameter           DATA_INGRESS_FIFO_DEPTH = 10,
   parameter           DATA_EGRESS_FIFO_DEPTH  = 6,
-  parameter           CONTROL_FIFO_DEPTH = 7
+  parameter           CONTROL_FIFO_DEPTH      = 7
 ) (
   input               clk,
   input               rst,
@@ -229,20 +229,16 @@ wire        [63:0]      s64_axis_tx_tdata;
 wire        [7:0]       s64_axis_tx_tkeep;
 wire                    s64_axis_tx_tlast;
 wire                    s64_axis_tx_tvalid;
-            
+
 wire                    s32_axis_tx_tready;
 wire        [31:0]      s32_axis_tx_tdata;
 wire        [3:0]       s32_axis_tx_tkeep;
 wire                    s32_axis_tx_tlast;
 wire                    s32_axis_tx_tvalid;
 
-
-
 wire        [3:0]       ingress_state;
+wire        [3:0]       egress_state;
 wire        [3:0]       controller_state;
-
-
-
 
 //Submodules
 tx1_pcie_adapter pcie_adapter (
@@ -287,31 +283,26 @@ tx1_pcie_adapter pcie_adapter (
   .m64_axis_rx_tready      (m64_axis_rx_tready            ),
   .m_axis_rx_tuser         (maxis_rx_tuser                ),
 
-
-
   .m32_axis_rx_tdata       (m32_axis_rx_tdata             ),
   .m32_axis_rx_tkeep       (m32_axis_rx_tkeep             ),
   .m32_axis_rx_tlast       (m32_axis_rx_tlast             ),
   .m32_axis_rx_tvalid      (m32_axis_rx_tvalid            ),
   .m32_axis_rx_tready      (m32_axis_rx_tready            ),
 
-
   .s64_axis_tx_tdata       (s64_axis_tx_tdata             ),
   .s64_axis_tx_tkeep       (s64_axis_tx_tkeep             ),
   .s64_axis_tx_tlast       (s64_axis_tx_tlast             ),
   .s64_axis_tx_tvalid      (s64_axis_tx_tvalid            ),
   .s64_axis_tx_tready      (s64_axis_tx_tready            ),
-                                                        
+
   .s32_axis_tx_tdata       (s32_axis_tx_tdata             ),
   .s32_axis_tx_tkeep       (s32_axis_tx_tkeep             ),
   .s32_axis_tx_tlast       (s32_axis_tx_tlast             ),
   .s32_axis_tx_tvalid      (s32_axis_tx_tvalid            ),
   .s32_axis_tx_tready      (s32_axis_tx_tready            ),
 
-
-
-
   .o_ingress_state         (ingress_state                 ),
+  .o_egress_state          (egress_state                  ),
   .o_controller_state      (controller_state              ),
 
 
@@ -400,6 +391,7 @@ assign  o_debug[31]     = w_clock_locked;
 //PCIE Comm Incomming Debug
 //assign  o_debug[15:0]   = m64_axis_rx_tdata[15:0];
 assign  o_debug[15:0]   = m32_axis_rx_tdata[15:0];
+//assign  o_debug[15:0]   = m32_axis_rx_tdata[31:16];
 assign  o_debug[19:16]  = m32_axis_rx_tkeep[3:0];
 assign  o_debug[20]     = m32_axis_rx_tvalid;
 assign  o_debug[21]     = m32_axis_rx_tready;
@@ -409,6 +401,9 @@ assign  o_debug[23]     = 1'b0;
 assign  o_debug[27:24]  = ingress_state;
 assign  o_debug[31:28]  = controller_state;
 */
+
+
+
 /*
 assign  o_debug[28]     = m32_axis_rx_tvalid;
 assign  o_debug[29]     = m32_axis_rx_tready;
@@ -416,15 +411,18 @@ assign  o_debug[30]     = m32_axis_rx_tlast;
 assign  o_debug[31]     = 1'b0;
 */
 
-assign  o_debug[15:0]   = s64_axis_tx_tdata[15:0];
+//assign  o_debug[15:0]   = s64_axis_tx_tdata[15:0];
 //assign  o_debug[15:0]   = s32_axis_tx_tdata[15:0];
-assign  o_debug[19:16]  = s64_axis_tx_tkeep[3:0];
-assign  o_debug[20]     = s64_axis_tx_tvalid;
-assign  o_debug[21]     = s64_axis_tx_tready;
-assign  o_debug[22]     = s64_axis_tx_tlast;
-assign  o_debug[23]     = 1'b0;
+assign  o_debug[15:0]   = s32_axis_tx_tdata[31:16];
+//assign  o_debug[19:16]  = s32_axis_tx_tkeep[3:0];
+assign  o_debug[19:16]  = s32_axis_tx_tkeep[3:0];
+assign  o_debug[20]     = s32_axis_tx_tvalid;
+assign  o_debug[21]     = s32_axis_tx_tready;
+assign  o_debug[22]     = s32_axis_tx_tlast;
+assign  o_debug[23]     = s64_axis_tx_tvalid;;
 
-assign  o_debug[27:24]  = ingress_state;
+//assign  o_debug[27:24]  = ingress_state;
+assign  o_debug[27:24]  = egress_state;
 assign  o_debug[31:28]  = controller_state;
 
 

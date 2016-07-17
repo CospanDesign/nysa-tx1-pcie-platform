@@ -47,6 +47,7 @@ SOFTWARE.
 module ingress_buffer_manager #(
   parameter                 BUFFER_WIDTH              = 12,   //4096
   parameter                 MAX_REQ_WIDTH             = 9
+  //parameter                 MAX_REQ_WIDTH             = 7
 )(
   input                     clk,
   input                     rst,

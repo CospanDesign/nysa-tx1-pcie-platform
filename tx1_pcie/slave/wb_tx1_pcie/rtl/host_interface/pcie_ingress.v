@@ -225,7 +225,8 @@ assign  w_pkt_data_size       = r_hdr[0][`PCIE_DWORD_PKT_CNT_RANGE];
 assign  w_pkt_addr            = {r_hdr[2][31:2], 2'b00};
 assign  w_cmplt_lower_addr    = r_hdr[2][`CMPLT_LOWER_ADDR_RANGE];
 
-assign  w_reg_addr            = (i_control_addr_base >= 0) ? ((w_pkt_addr - i_control_addr_base) >> 2): 32'h00;
+//assign  w_reg_addr            = (i_control_addr_base >= 0) ? ((w_pkt_addr - i_control_addr_base) >> 2): 32'h00;
+assign  w_reg_addr            = w_pkt_addr[11:0] >> 2;
 assign  w_cmd_en              = (w_reg_addr >= `CMD_OFFSET);
 //assign  w_buf_pkt_addr_base   = i_buf_offset - (w_pkt_addr + w_cmplt_lower_addr);
 //assign  w_buf_pkt_addr_base   = i_buf_offset - w_cmplt_lower_addr;
@@ -508,20 +509,20 @@ always @ (posedge clk) begin
           state                       <=  IDLE;
         end
       end
-      FLUSH: begin
-        if (!o_axi_ingress_ready) begin
-          state                       <=  IDLE;
-        end
-        if (!i_axi_ingress_valid) begin
-          o_axi_ingress_ready         <=  0;
-        end
-      end
       READ_BAR_ADDR: begin
         o_enable_config_read          <=  1;
         if (i_finished_config_read) begin
           r_config_space_done         <=  1;
           o_enable_config_read        <=  0;
           state                       <=  IDLE;
+        end
+      end
+      FLUSH: begin
+        if (!o_axi_ingress_ready) begin
+          state                       <=  IDLE;
+        end
+        if (!i_axi_ingress_valid) begin
+          o_axi_ingress_ready         <=  0;
         end
       end
       default: begin
@@ -531,7 +532,7 @@ always @ (posedge clk) begin
     //if (i_axi_ingress_last) begin
     //  o_axi_ingress_ready             <=  0;
     //end
-    
+
   end
 end
 

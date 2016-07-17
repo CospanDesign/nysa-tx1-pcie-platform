@@ -17,6 +17,9 @@
 `define PCIE_MRD_32B      8'b00000000
 `define PCIE_MWR_32B      8'b01000000
 
+`define PCIE_MRD_64B      8'b00100000
+`define PCIE_MWR_64B      8'b01100000
+
 `define PCIE_MRD          8'b00X00000
 `define PCIE_MRDLK        8'b00X00001
 `define PCIE_MWR          8'b01X00000
@@ -46,7 +49,18 @@
 //Packet Flags
 `define PCIE_FLAGS_RANGE  23:10
 
-`define FLAG_NORMAL {1'b0, `FLAG_TC_NORMAL, 1'b0, `FLAG_ID_ORD, 1'b0, `FLAG_PROC_HINT, `FLAG_DIGEST, `FLAG_POISONED, `FLAG_RELAX_ORD, `FLAG_NO_SNOOP, `FLAG_ADDR_TRANS}
+`define FLAG_NORMAL { 1'b0,             \
+                      `FLAG_TC_NORMAL,  \
+                      1'b0,             \
+                      `FLAG_ID_ORD,     \
+                      1'b0,             \
+                      `FLAG_PROC_HINT,  \
+                      `FLAG_DIGEST,     \
+                      `FLAG_POISONED,   \
+                      `FLAG_RELAX_ORD,  \
+                      `FLAG_NO_SNOOP,   \
+                      `FLAG_ADDR_TRANS}
+
 `define FLAG_TC_NORMAL    3'b000
 `define FLAG_POISONED     1'b0
 `define FLAG_ADDR_TRANS   2'b00
