@@ -4,11 +4,11 @@
 #define MODULE_NAME                 "nysa_pcie"
 
 #define PCI_VENDOR_XILINX           0x10EE
-#define PCI_DEVICE_XILINX_PCIE_RAM  0x0007
+#define PCI_DEVICE_XILINX_PCIE_RAM  0x7011
 //#define PCI_DEVICE_XILINX_PCIE_RAM  0x0008
 
 //Module Specific Defines
-#define MAX_DEVICES                 8
+#define MAX_DEVICES                 1
 #define MINOR_NUM_START             0
 
 

@@ -24,6 +24,7 @@
 
 #include <linux/types.h>
 #include <linux/init.h>
+#include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
@@ -112,10 +113,10 @@ ssize_t nysa_pcie_write(struct file *filp, const char *buf, size_t count, loff_t
     mod_info_dbg("Command Mode!\n");
     if (count > 12){
       mod_info_dbg("Copy only the first 12-bytes\n");
-      copy_from_user(kernel_buf, buf, 12);
+      retval = copy_from_user(kernel_buf, buf, 12);
     }
     else
-      copy_from_user(kernel_buf, buf, count);
+      retval = copy_from_user(kernel_buf, buf, count);
 
     address         = (kernel_buf[0] << 24) | (kernel_buf[1] << 16) | (kernel_buf[2]  << 8) | (kernel_buf[3]);
     value           = (kernel_buf[4] << 24) | (kernel_buf[5] << 16) | (kernel_buf[6]  << 8) | (kernel_buf[7]);

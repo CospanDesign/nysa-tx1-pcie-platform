@@ -232,6 +232,9 @@ class NysaPCIE (object):
         os.write(self.f, d)
         self.set_data_mode()
 
+    def read_config(self):
+        self.write_command(CMD_READ_CONFIG, 0x00, 0x00)
+
     def write_periph_data(self, address, data):
         d = Array('B')
         while len(data) % 4:
@@ -335,10 +338,14 @@ def main(argv):
                         action="store_true",
                         help="Enable Debug Messages")
 
+    parser.add_argument("--cfg",
+                        action="store_true",
+                        help="Read Configuration")
 
     parser.add_argument("-d", "--debug",
                         action="store_true",
                         help="Enable Debug Messages")
+
 
     args = parser.parse_args()
     print "Running Script: %s" % NAME
@@ -375,20 +382,17 @@ def main(argv):
     if args.reset:
         print "Reset"
         n.reset()
+
+    if args.cfg:
+        n.read_config()
+        sys.exit(0)
         
     if not args.dma:
         if write_flag:
             n.write_periph_data(address, data)
         if read_flag:
             n.read_periph_data(address, count)
-    else:
-        if write_flag:
-            print "Write DMA"
-            n.write_dma_data(data)
-        if read_flag:
-            print "Read DMA"
-            n.read_dma_data(count)
- 
+
 
 if __name__ == "__main__":
     main(sys.argv)

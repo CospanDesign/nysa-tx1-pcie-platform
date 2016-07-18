@@ -5,6 +5,8 @@
 #include <linux/pci.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/sysfs.h>
@@ -95,8 +97,6 @@ enum MSI_ISR
 //-----------------------------------------------------------------------------
 // Function Prototypes
 //-----------------------------------------------------------------------------
-irqreturn_t msi_isr(int irq, void *data);
-
 //-----------------------------------------------------------------------------
 // SYSFS Interface
 //-----------------------------------------------------------------------------
@@ -127,6 +127,7 @@ static ssize_t unlock_driver_store(struct device *dev, struct device_attribute *
   return retval;
 }
 
+/*
 static ssize_t config_space_nysa_show(struct device *dev, struct device_attribute *addr, char *buf)
 {
   struct pci_dev *pdev = NULL;
@@ -142,6 +143,8 @@ static ssize_t config_space_nysa_show(struct device *dev, struct device_attribut
                     d->config_space[3]);
 
 }
+*/
+
 static ssize_t reset_fpga_show (struct device *dev, struct device_attribute *attr, char *buf)
 {
   struct pci_dev *pdev = NULL;
@@ -167,11 +170,36 @@ static ssize_t reset_fpga_store(struct device *dev, struct device_attribute *att
   return 1;
 }
 
+/*
+CLASS_ATTR unlock_driver_class = {
+            unlock_driver,
+            0755,
+            unlock_driver_show,
+            unlock_driver_store};
+CLASS_ATTR( reset_fpga,
+            0755,
+            reset_fpga_show,
+            reset_fpga_store);
+
+*/
+
+/*
+const struct device_attribute unlock_driver_attr = {
+  .show = unlock_driver_show,
+  .store = unlock_driver_store
+};
+const struct device_attribute reset_fpga_attr = {
+  .show = reset_fpga_show,
+  .store = reset_fpga_store
+};
+*/
 
 
-static DEVICE_ATTR_RW(unlock_driver);
-static DEVICE_ATTR_RO(config_space_nysa);
-static DEVICE_ATTR_RW(reset_fpga);
+
+DEVICE_ATTR(unlock_driver, S_IWUSR | S_IRUGO, unlock_driver_show, unlock_driver_store );
+DEVICE_ATTR(reset_fpga,    S_IWUSR | S_IRUGO, reset_fpga_show,    reset_fpga_store    );
+
+/*
 
 static struct attribute * nysa_pcie_attrs [] =
 {
@@ -182,6 +210,146 @@ static struct attribute * nysa_pcie_attrs [] =
 };
 
 ATTRIBUTE_GROUPS(nysa_pcie);
+*/
+
+//MSI ISRs
+irqreturn_t msi_isr(int irq, void *data)
+{
+  int i;
+  int buf_index = 0;
+  int buf_status = 0;
+  struct pci_dev * pdev;
+  nysa_pcie_dev_t *dev;
+
+  //mod_info_dbg("Entered Interrupt\n");
+  //printk ("i\n");
+  pdev = (struct pci_dev *) data;
+  dev = pci_get_drvdata(pdev);
+  //Read the configuration data
+  dma_sync_single_for_cpu(&pdev->dev, dev->status_dma_addr, NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
+  memcpy(dev->config_space, dev->status_buffer, (CONFIG_REGISTER_COUNT * 4));
+  dma_sync_single_for_device(&pdev->dev, dev->status_dma_addr, NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
+
+  //mod_info_dbg("Configuration Data\n");
+  for (i = 0; i < CONFIG_REGISTER_COUNT; i++)
+  {
+    dev->config_space[i] = be32_to_cpu(dev->config_space[i]);
+    mod_info_dbg("\t0x%08X\n", dev->config_space[i]);
+  }
+
+  //mod_info_dbg("Device Status: 0x%08X\n", dev->config_space[STS_DEV_STATUS]);
+  buf_status = dev->config_space[STS_BUF_RDY];
+
+  if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_WRITE))
+  {
+    //mod_info_dbg("Writing: Buffer Ready Status: 0x%02X\n", dev->config_space[STS_BUF_RDY]);
+    //Writing
+    if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE))
+    {
+      buf_index = 0;
+      //Done with write transaction, let the blocked function know
+      dev->rw_fifo_item[buf_index].indexa = dev->config_space[HDR_INDEX_VALUEA];
+      dev->rw_fifo_item[buf_index].indexb = dev->config_space[HDR_INDEX_VALUEB];
+      dev->rw_fifo_item[buf_index].done = (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE));
+      kfifo_put(&dev->rw_fifo, &buf_index);
+      up(&dev->rw_sem);
+    }
+    else
+    {
+      //More data to send
+      //Need to tell the blocked function that there are buffers to work with
+      /*
+      if (buf_status == 0x3)
+        printk("BUF STATUS = 0x3\n");
+      while (buf_status > 0)
+      {
+      */
+        if (dev->config_space[STS_BUF_RDY] & 0x01)
+          buf_index = 0;
+        else
+          buf_index = 1;
+        //Clear the previous index position
+        //buf_status &= ~(1 << buf_index);
+        dev->rw_fifo_item[buf_index].indexa = dev->config_space[HDR_INDEX_VALUEA];
+        dev->rw_fifo_item[buf_index].indexb = dev->config_space[HDR_INDEX_VALUEB];
+        //dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
+        dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
+        kfifo_put(&dev->rw_fifo, &buf_index);
+        //Give back the semaphore
+        up(&dev->rw_sem);
+      /*
+
+      }
+      */
+    }
+  }
+  else if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_READ))
+  {
+    //For the first version I can just look at the index, if the index is equal to what comes up then send over the buffer
+    //If the index is less than the current we need to send over the other buffer first
+
+    //Reading
+    //mod_info_dbg("Reading: Buffer Ready Status: 0x%02X\n", dev->config_space[STS_BUF_RDY]);
+    //printk("%d\n", dev->config_space[STS_BUF_RDY]);
+    if (dev->config_space[STS_BUF_RDY] > 0)
+    {
+      if (dev->config_space[STS_BUF_RDY] & 0x01)
+        buf_index = 0;
+      else
+        buf_index = 1;
+
+
+      /*
+      if (dev->config_space[HDR_INDEX_VALUE] > dev->rw_index)
+      {
+        printk ("Missed!: %d:%d\n", dev->config_space[HDR_INDEX_VALUE], dev->rw_index);
+        //We missed one!
+        if (buf_index == 0)
+          buf_index = 1;
+        else
+          buf_index = 0;
+
+        dev->rw_fifo_item[buf_index].pos  = 0;  //Don't have this info!
+        dev->rw_fifo_item[buf_index].done = false;
+        kfifo_put(&dev->rw_fifo, buf_index);
+
+        if (buf_index == 0)
+          buf_index = 1;
+        else
+          buf_index = 0;
+
+        dev->rw_index++;
+        up(&dev->rw_sem);
+      }
+      */
+
+
+      dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
+      dev->rw_fifo_item[buf_index].indexa  = dev->config_space[HDR_INDEX_VALUEA];
+      dev->rw_fifo_item[buf_index].done = (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE));
+      /*
+      if (dev->rw_fifo_item[buf_index].done)
+        mod_info_dbg("Detected Done!: 0x%08X\n", dev->rw_fifo_item[buf_index].pos);
+      */
+      kfifo_put(&dev->rw_fifo, &buf_index);
+      //Give back the semaphore
+      //dev->rw_index++;
+      up(&dev->rw_sem);
+    }
+    else if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE))
+    {
+      buf_index = 0;
+      //Done with write transaction, let the blocked function know
+      //mod_info_dbg("MSI: Done!\n");
+      dev->rw_fifo_item[buf_index].done = (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE));
+      kfifo_put(&dev->rw_fifo, &buf_index);
+      up(&dev->rw_sem);
+    }
+  }
+  return IRQ_HANDLED;
+}
+
+
 
 //-----------------------------------------------------------------------------
 // Utility Functions
@@ -202,9 +370,7 @@ int construct_pcie_ctr(int dev_count)
   }
 
   //Because we call 'kmalloc' everything should be zeroed out
-  nysa_pcie_devs = (nysa_pcie_dev_t *)kmalloc(
-                              MAX_DEVICES * sizeof(nysa_pcie_dev_t),
-                              GFP_KERNEL);
+  nysa_pcie_devs = (nysa_pcie_dev_t *)  kmalloc(MAX_DEVICES * sizeof(nysa_pcie_dev_t), GFP_KERNEL);
   if (nysa_pcie_devs == NULL)
   {
     retval= -ENOMEM;
@@ -297,7 +463,7 @@ int get_nysa_pcie_dev_index(nysa_pcie_dev_t * dev)
 int write_register(nysa_pcie_dev_t *dev, unsigned int reg_addr, unsigned int value)
 {
   iowrite32(cpu_to_be32(value), (void *) (dev->virt_addr + (reg_addr << 2)));
-  flush_write_buffers();
+  //flush_write_buffers();
   return 0;
 }
 
@@ -350,14 +516,18 @@ ssize_t nysa_pcie_write_data(nysa_pcie_dev_t *dev, const char __user * user_buf,
   //Clear out the KFIFO
   while (!kfifo_is_empty(&dev->rw_fifo))
   {
-    kfifo_get(&dev->rw_fifo, &buffer_index);
+    retval = kfifo_get(&dev->rw_fifo, &buffer_index);
   }
   clear_fifo_structs(dev);
 
   //Set the read/write index to zero to keep track of incomming packets
 
   //Make sure we have two semaphores to work with
-  while (down_trylock(&dev->rw_sem) == 0) {};
+  retval = down_trylock(&dev->rw_sem);
+  while (retval == 0)
+  {
+    retval = down_trylock(&dev->rw_sem);
+  };
   mod_info_dbg("Prepare Buffers\n");
 
   //We need to set up the initial buffers so the FPGA has something to work with
@@ -396,7 +566,7 @@ ssize_t nysa_pcie_write_data(nysa_pcie_dev_t *dev, const char __user * user_buf,
     else
     {
       mod_info_dbg("\tfifo avail\n");
-      down_trylock(&dev->rw_sem);
+      retval = down_trylock(&dev->rw_sem);
     }
 
     if (dev->state != RUNNING)
@@ -406,7 +576,8 @@ ssize_t nysa_pcie_write_data(nysa_pcie_dev_t *dev, const char __user * user_buf,
       return pos;
     }
 
-    if (kfifo_get(&dev->rw_fifo, &buffer_index) == 0)
+    retval = kfifo_get(&dev->rw_fifo, &buffer_index);
+    if (retval == 0)
     {
       //There was nothing in the KFIFO, this is bad, run RUN!
       mod_info_dbg("A semaphore woke us up but there was no data in KFIFO!?\n");
@@ -487,14 +658,18 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
   //Clear out the KFIFO
   while (!kfifo_is_empty(&dev->rw_fifo))
   {
-    kfifo_get(&dev->rw_fifo, &buffer_index);
+    retval = kfifo_get(&dev->rw_fifo, &buffer_index);
   }
   clear_fifo_structs(dev);
   //Set the read/write index to zero to keep track of incomming packets
   dev->rw_index = 0;
 
   //Take two of the semaphors
-  while (down_trylock(&dev->rw_sem) == 0) {};
+  retval = down_trylock(&dev->rw_sem);
+  while (retval == 0)
+  {
+    retval = down_trylock(&dev->rw_sem);
+  };
 
   //Update the buffer status on the FPGA so that it knows it can write to both the buffers
   update_buffer_status(dev, 0x3); //bitmask of both buffers ready
@@ -516,7 +691,7 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
     else
     {
       mod_info_dbg("\tfifo avail\n");
-      down_trylock(&dev->rw_sem);
+      retval = down_trylock(&dev->rw_sem);
     }
     if (dev->state != RUNNING)
     {
@@ -524,7 +699,8 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
       mod_info_dbg("Module was destroyed while reading\n");
       return pos;
     }
-    if (kfifo_get(&dev->rw_fifo, &buffer_index) == 0)
+    retval = kfifo_get(&dev->rw_fifo, &buffer_index);
+    if (retval == 0)
     //if (kfifo_out_locked(&dev->rw_fifo, &buffer_index, 1, &dev->rw_spinlock) == 0)
     {
       //There was no data in the KFIFO, this is bad, run RUN!
@@ -559,7 +735,7 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
       pos += size;
       dev->rw_index++;
 
-      down_trylock(&dev->rw_sem);
+      retval = down_trylock(&dev->rw_sem);
 
       if (missed_index == 0)
         update_buffer_status(dev, 0x01);
@@ -630,15 +806,15 @@ int construct_pcie_device(struct pci_dev *pdev, dev_t devno)
   //Request Memory Region
   //Set PCIE Device to be in 32-bit mode
   mod_info_dbg("Set DMA Mask to 32 bits\n");
-  if ((retval = pci_set_dma_mask(pdev, DMA_BIT_MASK(32))))
+  if ((retval = pci_set_dma_mask(pdev, DMA_BIT_MASK(64))))
   {
     dev_err(&pdev->dev, "No suitable DMA Available\n");
     goto disable_device;
   }
 
   //Set Max sample size
-  mod_info_dbg("Set Max Packet Size to: 0x%08X\n", NYSA_MAX_PACKET_SIZE);
-  retval = pcie_set_mps(pdev, NYSA_MAX_PACKET_SIZE);
+  //mod_info_dbg("Set Max Packet Size to: 0x%08X\n", NYSA_MAX_PACKET_SIZE);
+  //retval = pcie_set_mps(pdev, NYSA_MAX_PACKET_SIZE);
   if (retval != 0)
   {
     mod_info_dbg("Max Packet Size Failed %d to be set\n", retval);
@@ -702,6 +878,12 @@ int construct_pcie_device(struct pci_dev *pdev, dev_t devno)
   //Create the DMA Mapping
   dev->status_dma_addr = pci_map_single(pdev, dev->status_buffer, NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
   mod_info_dbg("Status Buf Addr: %p : DMA Buf Addr : %p\n", dev->status_buffer, (void *) dev->status_dma_addr);
+  dev->command_mode = false;
+  dev->pdev = pdev;
+  pci_set_drvdata(pdev, dev);
+
+
+
   write_register(dev, HDR_STATUS_BUF_ADDR, (u32) dev->status_dma_addr);
   if (0 == dev->status_dma_addr)
   {
@@ -759,23 +941,51 @@ int construct_pcie_device(struct pci_dev *pdev, dev_t devno)
   write_register(dev, HDR_READ_BUF_B_ADDR,  (u32) dev->read_dma_addr[1]);
   write_register(dev, HDR_BUFFER_SIZE,      (u32) NYSA_PCIE_BUFFER_SIZE);
 
+/*
   device = device_create_with_groups (pci_class,                 // Parent Class
                                       NULL,                      // No Parent Device
                                       devno,                     // Major/Minor Number
                                       pdev,                      // Our Data
                                       nysa_pcie_groups,          // Attribute Group
                                       MODULE_NAME "%d", index);  // Format
+*/
 
+  device = device_create             (pci_class,                 // Parent Class
+                                      NULL,                      // No Parent Device
+                                      MKDEV(major_num, 0),       // Major/Minor Number
+                                      pdev,                      // Our Data
+                                      MODULE_NAME "%d", index);  // Format
+
+
+
+  if (IS_ERR(device))
+  {
+    retval = PTR_ERR(device);
+    mod_info_dbg("Error %d while trying to create %s%d\n", retval, MODULE_NAME, index);
+    goto fail_reset_device;
+  }
+
+  mod_info_dbg("Create Device File\n");
+  device_create_file                 (device,
+                                      &dev_attr_reset_fpga);
+  device_create_file                 (device,
+                                      &dev_attr_unlock_driver);
+  mod_info_dbg("Created Device File\n");
+
+
+  dev->state = RUNNING;
 
   //Initialized the Semaphore
   sema_init(&dev->rw_sem, READ_BUFFER_COUNT);
   spin_lock_init(&dev->rw_spinlock);
   //Allocate a buffer for the KFIFO
+  mod_info_dbg("Create kfifo\n");
   if ((retval = kfifo_alloc(&dev->rw_fifo, READ_BUFFER_COUNT, GFP_KERNEL)) != 0)
   {
     mod_info_dbg("Error while trying to create a kfifo: %d\n", retval);
     goto fail_kfifo_alloc;
   }
+  mod_info_dbg("kfifo created\n");
 
   for (i = 0; i < READ_BUFFER_COUNT; i++)
   {
@@ -786,22 +996,12 @@ int construct_pcie_device(struct pci_dev *pdev, dev_t devno)
     dev->rw_fifo_item[i].indexb = 0;
     atomic_set(&dev->rw_fifo_item[i].kill, 0);
   }
+  mod_info_dbg("initialized kfifo\n");
 
   //Create Work Queue
   //dev->wq = alloc_ordered_workqueue("nysa_pcie", NULL);
 
-  if (IS_ERR(device))
-  {
-    retval = PTR_ERR(device);
-    mod_info_dbg("Error %d while trying to create %s%d\n", retval, MODULE_NAME, index);
-    goto fail_reset_device;
-  }
 
-  dev->pdev = pdev;
-  dev->command_mode = false;
-  pci_set_drvdata(pdev, dev);
-  //dev->initialized = true;
-  dev->state = RUNNING;
   return SUCCESS;
 
 
@@ -950,141 +1150,4 @@ void destroy_pcie_device(struct pci_dev *pdev)
 //-----------------------------------------------------------------------------
 // PCIE Functionality
 //-----------------------------------------------------------------------------
-//MSI ISRs
-irqreturn_t msi_isr(int irq, void *data)
-{
-  int i;
-  int buf_index = 0;
-  int buf_status = 0;
-  struct pci_dev * pdev;
-  nysa_pcie_dev_t *dev;
-
-  //mod_info_dbg("Entered Interrupt\n");
-  //printk ("i\n");
-  pdev = (struct pci_dev *) data;
-  dev = pci_get_drvdata(pdev);
-  //Read the configuration data
-  dma_sync_single_for_cpu(&pdev->dev, dev->status_dma_addr, NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
-  memcpy(dev->config_space, dev->status_buffer, (CONFIG_REGISTER_COUNT * 4));
-  dma_sync_single_for_device(&pdev->dev, dev->status_dma_addr, NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
-
-  //mod_info_dbg("Configuration Data\n");
-  for (i = 0; i < CONFIG_REGISTER_COUNT; i++)
-  {
-    dev->config_space[i] = be32_to_cpu(dev->config_space[i]);
-    ///mod_info("\t0x%08X\n", dev->config_space[i]);
-  }
-
-  //mod_info_dbg("Device Status: 0x%08X\n", dev->config_space[STS_DEV_STATUS]);
-  buf_status = dev->config_space[STS_BUF_RDY];
-
-  if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_WRITE))
-  {
-    //mod_info_dbg("Writing: Buffer Ready Status: 0x%02X\n", dev->config_space[STS_BUF_RDY]);
-    //Writing
-    if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE))
-    {
-      buf_index = 0;
-      //Done with write transaction, let the blocked function know
-      dev->rw_fifo_item[buf_index].indexa = dev->config_space[HDR_INDEX_VALUEA];
-      dev->rw_fifo_item[buf_index].indexb = dev->config_space[HDR_INDEX_VALUEB];
-      dev->rw_fifo_item[buf_index].done = (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE));
-      kfifo_put(&dev->rw_fifo, buf_index);
-      up(&dev->rw_sem);
-    }
-    else
-    {
-      //More data to send
-      //Need to tell the blocked function that there are buffers to work with
-      /*
-      if (buf_status == 0x3)
-        printk("BUF STATUS = 0x3\n");
-      while (buf_status > 0)
-      {
-      */
-        if (dev->config_space[STS_BUF_RDY] & 0x01)
-          buf_index = 0;
-        else
-          buf_index = 1;
-        //Clear the previous index position
-        //buf_status &= ~(1 << buf_index);
-        dev->rw_fifo_item[buf_index].indexa = dev->config_space[HDR_INDEX_VALUEA];
-        dev->rw_fifo_item[buf_index].indexb = dev->config_space[HDR_INDEX_VALUEB];
-        //dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
-        dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
-        kfifo_put(&dev->rw_fifo, buf_index);
-        //Give back the semaphore
-        up(&dev->rw_sem);
-      /*
-
-      }
-      */
-    }
-  }
-  else if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_READ))
-  {
-    //For the first version I can just look at the index, if the index is equal to what comes up then send over the buffer
-    //If the index is less than the current we need to send over the other buffer first
-
-    //Reading
-    //mod_info_dbg("Reading: Buffer Ready Status: 0x%02X\n", dev->config_space[STS_BUF_RDY]);
-    //printk("%d\n", dev->config_space[STS_BUF_RDY]);
-    if (dev->config_space[STS_BUF_RDY] > 0)
-    {
-      if (dev->config_space[STS_BUF_RDY] & 0x01)
-        buf_index = 0;
-      else
-        buf_index = 1;
-
-
-      /*
-      if (dev->config_space[HDR_INDEX_VALUE] > dev->rw_index)
-      {
-        printk ("Missed!: %d:%d\n", dev->config_space[HDR_INDEX_VALUE], dev->rw_index);
-        //We missed one!
-        if (buf_index == 0)
-          buf_index = 1;
-        else
-          buf_index = 0;
-
-        dev->rw_fifo_item[buf_index].pos  = 0;  //Don't have this info!
-        dev->rw_fifo_item[buf_index].done = false;
-        kfifo_put(&dev->rw_fifo, buf_index);
-
-        if (buf_index == 0)
-          buf_index = 1;
-        else
-          buf_index = 0;
-
-        dev->rw_index++;
-        up(&dev->rw_sem);
-      }
-      */
-
-
-      dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
-      dev->rw_fifo_item[buf_index].indexa  = dev->config_space[HDR_INDEX_VALUEA];
-      dev->rw_fifo_item[buf_index].done = (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE));
-      /*
-      if (dev->rw_fifo_item[buf_index].done)
-        mod_info_dbg("Detected Done!: 0x%08X\n", dev->rw_fifo_item[buf_index].pos);
-      */
-      kfifo_put(&dev->rw_fifo, buf_index);
-      //Give back the semaphore
-      //dev->rw_index++;
-      up(&dev->rw_sem);
-    }
-    else if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE))
-    {
-      buf_index = 0;
-      //Done with write transaction, let the blocked function know
-      //mod_info_dbg("MSI: Done!\n");
-      dev->rw_fifo_item[buf_index].done = (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE));
-      kfifo_put(&dev->rw_fifo, buf_index);
-      up(&dev->rw_sem);
-    }
-  }
-  return IRQ_HANDLED;
-}
-
 
