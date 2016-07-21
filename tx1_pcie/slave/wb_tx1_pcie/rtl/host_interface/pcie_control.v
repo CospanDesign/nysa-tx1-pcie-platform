@@ -88,6 +88,7 @@ module pcie_control (
   input                     i_read_fin,
 
   output  reg [31:0]        o_data_size,
+  output  reg [31:0]        o_data_count,
   output  reg [31:0]        o_data_address,
   output  reg               o_data_fifo_flg,
   output  reg               o_data_read_flg,
@@ -144,7 +145,7 @@ module pcie_control (
   output                    o_sys_rst,
   output  reg [7:0]         o_cfg_read_exec,
   output      [3:0]         o_cfg_sm_state,
-  output      [3:0]         o_sm_state
+  output      [3:0]         o_ctl_state
 );
 
 
@@ -202,7 +203,7 @@ reg   [31:0]                r_index_valuea;
 reg   [31:0]                r_index_valueb;
 
 
-reg   [31:0]                r_data_count;
+//reg   [31:0]                o_data_count;
 reg   [31:0]                r_data_pos;
 reg   [23:0]                r_block_count;
 reg   [23:0]                r_fifo_size;
@@ -238,7 +239,7 @@ wire                        w_cfg_req;
 
 wire   [23:0]               w_ingress_count_left;
 
-assign  w_ingress_count_left  = (o_data_size - r_data_count);
+assign  w_ingress_count_left  = (o_data_size - o_data_count);
 
 wire  [31:0]                write_buf_map [0:1];
 assign  write_buf_map[0]  = i_write_a_addr;
@@ -327,7 +328,7 @@ assign  o_egress_tag                        = r_tlp_tag;
 
 assign  r_cfg_ready                         = (cfg_state != IDLE);
 assign  o_cfg_sm_state                      = cfg_state;
-assign  o_sm_state                          = state;
+assign  o_ctl_state                         = state;
 
 assign  w_sts_ready                         = (state == IDLE);
 assign  w_sts_hst_buf_stall                 = (state == WAIT_FOR_HOST_EGRESS_BUFFER)  ||
@@ -372,7 +373,7 @@ always @ (posedge clk) begin
     r_sts_done          <=  0;
     r_sts_cmd_err       <=  0;
 
-    r_data_count        <=  0;
+    o_data_count        <=  0;
     r_block_count       <=  0;
     o_data_size         <=  0;
     o_data_address      <=  0;
@@ -432,7 +433,7 @@ always @ (posedge clk) begin
         r_buf_done          <= 2'b00;
         r_tmp_done          <= 2'b00;
 
-        r_data_count        <= 0;
+        o_data_count        <= 0;
         r_data_pos          <= 0;
         r_block_count       <= 0;
         r_buf_sel           <= 0;
@@ -490,7 +491,7 @@ always @ (posedge clk) begin
       EGRESS_DATA_FLOW: begin
         r_tlp_command                   <=  `PCIE_MWR_64B;
         r_tlp_flags                     <=  `FLAG_NORMAL;
-        //if (r_data_count < o_data_size) begin
+        //if (o_data_count < o_data_size) begin
         if (!i_read_fin) begin
           //More data to send
           state                         <=  WAIT_FOR_HOST_EGRESS_BUFFER;
@@ -526,7 +527,7 @@ always @ (posedge clk) begin
       end
       WAIT_FOR_FPGA_EGRESS_FIFO: begin
         //Send data to the host
-        //if ((r_data_count < o_data_size) && (r_block_count < i_buffer_size)) begin
+        //if ((o_data_count < o_data_size) && (r_block_count < i_buffer_size)) begin
         if (!i_read_fin && (r_block_count < i_buffer_size)) begin
           if (i_e_fifo_rdy) begin
             r_fifo_size                 <=  i_e_fifo_size;
@@ -536,7 +537,7 @@ always @ (posedge clk) begin
         end
         else begin
           r_buf_done[r_buf_sel]         <=  1;
-          //if (r_data_count >= o_data_size) begin
+          //if (o_data_count >= o_data_size) begin
           if (i_read_fin) begin
             r_sts_done                  <=  1;
           end
@@ -551,7 +552,7 @@ always @ (posedge clk) begin
           r_send_data_en                <=  0;
           //Add the amount we sent through the egress FIFO to our data count
           r_block_count                 <=  r_block_count + (r_fifo_size << 2);
-          r_data_count                  <=  r_data_count  + (r_fifo_size << 2);
+          o_data_count                  <=  o_data_count  + (r_fifo_size << 2);
           state                         <=  WAIT_FOR_FPGA_EGRESS_FIFO;
         end
       end
@@ -560,7 +561,7 @@ always @ (posedge clk) begin
         if (r_send_cfg_fin) begin
           r_send_cfg_en                 <=  0;
           r_buf_done                    <=  0;
-          r_data_pos                    <=  r_data_count;
+          r_data_pos                    <=  o_data_count;
           state                         <=  EGRESS_DATA_FLOW;
           r_index_valuea                 <=  r_index_valuea + 1;
         end
@@ -580,7 +581,7 @@ always @ (posedge clk) begin
         o_ibm_en                        <= 1;
         r_tlp_command                   <= `PCIE_MRD_64B;
         r_tlp_flags                     <= `FLAG_NORMAL;
-        if (r_data_count < o_data_size) begin
+        if (o_data_count < o_data_size) begin
           //More data to send
           state                         <= WAIT_FOR_HOST_INGRESS_TAG;
         end
@@ -635,7 +636,7 @@ always @ (posedge clk) begin
         r_send_data_en                  <= 1;
         if (i_egress_finished) begin
           r_send_data_en                <= 0;
-          r_data_count                  <= r_data_count + o_dword_req_cnt;
+          o_data_count                  <= o_data_count + o_dword_req_cnt;
           state                         <= INGRESS_DATA_FLOW;
         end
       end

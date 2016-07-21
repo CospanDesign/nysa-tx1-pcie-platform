@@ -55,9 +55,16 @@
           "direction":"output"
         }
       }
+    },
+    "dma":{
+        "filename":"wb_dma.v"
     }
+
   },
   "MEMORY":{
+    "ddr3_mem":{
+      "filename":"wb_tx1_dma.v"
+    }
   },
   "bind":{
       "clk":{

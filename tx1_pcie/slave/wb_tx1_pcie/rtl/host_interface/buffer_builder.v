@@ -67,7 +67,8 @@ module buffer_builder #(
   output  reg     [1:0]               o_write_activate,
   input           [23:0]              i_write_size,
   output  reg                         o_write_stb,
-  output          [DATA_WIDTH - 1:0]  o_write_data
+  output          [DATA_WIDTH - 1:0]  o_write_data,
+  output          [3:0]               o_dbg_state
 );
 //local parameters
 
@@ -111,6 +112,7 @@ dpb #(
 
 
 //asynchronous logic
+assign  o_dbg_state               = state;
 //synchronous logic
 always @ (posedge ppfifo_clk) begin
   o_write_stb                     <= 0;

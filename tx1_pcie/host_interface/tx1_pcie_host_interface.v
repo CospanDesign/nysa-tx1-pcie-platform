@@ -134,7 +134,7 @@ module tx1_pcie_host_interface (
   input           [31:0]      i_odma_data,
 
 
-  input           [3:0]       i_dbg_sm_state,
+  input           [3:0]       i_dbg_state,
   output          [31:0]      o_debug
 );
 //local parameters
@@ -213,7 +213,7 @@ ddr3_pcie_controller dc (
   .clk                (clk                     ),
   .rst                (rst                     ),
 
-  .data_size          (i_pcie_data_address             ),
+  .data_size          (i_pcie_data_address     ),
   .write_address      (w_mem_adr               ),
   .write_en           (w_mem_write_en          ),
   .read_address       (w_mem_adr               ),
@@ -259,58 +259,58 @@ ddr3_pcie_controller dc (
 );
 
 ppfifo_pcie_host_interface phi (
-  .rst                (rst              ),
-  .clk                (clk              ),
+  .rst                (rst                     ),
+  .clk                (clk                     ),
 
   .i_ing_en           (i_pcie_per_fifo_sel & i_pcie_data_write_flg  ),
   .i_egr_en           (i_pcie_per_fifo_sel & i_pcie_data_read_flg   ),
 
-  .o_ing_fin          (w_ing_per_fin    ),
-  .o_egr_fin          (w_egr_per_fin    ),
+  .o_ing_fin          (w_ing_per_fin           ),
+  .o_egr_fin          (w_egr_per_fin           ),
 
-  .i_sys_rst          (i_sys_rst        ),
+  .i_sys_rst          (i_sys_rst               ),
 
   //master interface
-  .i_master_ready     (i_master_ready   ),
-  .o_ih_reset         (o_ih_reset       ),
-  .o_ih_ready         (o_ih_ready       ),
+  .i_master_ready     (i_master_ready          ),
+  .o_ih_reset         (o_ih_reset              ),
+  .o_ih_ready         (o_ih_ready              ),
 
-  .o_in_command       (o_in_command     ),
-  .o_in_address       (o_in_address     ),
-  .o_in_data          (o_in_data        ),
-  .o_in_data_count    (o_in_data_count  ),
+  .o_in_command       (o_in_command            ),
+  .o_in_address       (o_in_address            ),
+  .o_in_data          (o_in_data               ),
+  .o_in_data_count    (o_in_data_count         ),
 
-  .o_oh_ready         (o_oh_ready       ),
-  .i_oh_en            (i_oh_en          ),
+  .o_oh_ready         (o_oh_ready              ),
+  .i_oh_en            (i_oh_en                 ),
 
-  .o_ih_state         (w_ih_state       ),
-  .o_oh_state         (w_oh_state       ),
+  .o_ih_state         (w_ih_state              ),
+  .o_oh_state         (w_oh_state              ),
 
-  .i_out_status       (i_out_status     ),
-  .i_out_address      (i_out_address    ),
-  .i_out_data         (i_out_data       ),
-  .i_out_data_count   (i_out_data_count ),
+  .i_out_status       (i_out_status            ),
+  .i_out_address      (i_out_address           ),
+  .i_out_data         (i_out_data              ),
+  .i_out_data_count   (i_out_data_count        ),
 
 /*
-  .o_id_value         (w_id_value           ),
-  .o_command_value    (w_command_value      ),
-  .o_count_value      (w_count_value        ),
-  .o_address_value    (w_address_value      ),
+  .o_id_value         (w_id_value              ),
+  .o_command_value    (w_command_value         ),
+  .o_count_value      (w_count_value           ),
+  .o_address_value    (w_address_value         ),
 */
 
   //Ingress Ping Pong
-  .i_ingress_rdy      (w_per_ingress_rdy    ),
-  .o_ingress_act      (w_per_ingress_act    ),
-  .o_ingress_stb      (w_per_ingress_stb    ),
-  .i_ingress_size     (w_per_ingress_size   ),
-  .i_ingress_data     (w_per_ingress_data   ),
+  .i_ingress_rdy      (w_per_ingress_rdy       ),
+  .o_ingress_act      (w_per_ingress_act       ),
+  .o_ingress_stb      (w_per_ingress_stb       ),
+  .i_ingress_size     (w_per_ingress_size      ),
+  .i_ingress_data     (w_per_ingress_data      ),
 
   //Egress Ping Pong
-  .i_egress_rdy       (w_per_egress_rdy     ),
-  .o_egress_act       (w_per_egress_act     ),
-  .o_egress_stb       (w_per_egress_stb     ),
-  .i_egress_size      (w_per_egress_size    ),
-  .o_egress_data      (w_per_egress_data    )
+  .i_egress_rdy       (w_per_egress_rdy        ),
+  .o_egress_act       (w_per_egress_act        ),
+  .o_egress_stb       (w_per_egress_stb        ),
+  .i_egress_size      (w_per_egress_size       ),
+  .o_egress_data      (w_per_egress_data       )
 );
 
 //Memory FIFO Adapter
@@ -428,6 +428,17 @@ assign o_pcie_read_fin       = (i_pcie_per_fifo_sel & i_pcie_data_read_flg)  ? w
 assign w_dma_write_fin        = i_pcie_ingress_fifo_idle;
 
 
+//assign o_debug[5]      = o_pcie_ingress_fifo_stb;
+//assign o_debug[6]      = o_pcie_ingress_fifo_act;
+//assign o_debug[7]      = i_pcie_ingress_fifo_rdy;
+//assign o_debug[8]      = o_pcie_egress_fifo_stb;
+//assign o_debug[10:9]   = o_pcie_egress_fifo_act;
+//assign o_debug[12:11]  = i_pcie_egress_fifo_rdy;
+//assign o_debug[13]     = w_per_egress_stb;
+//assign o_debug[15:14]  = w_per_egress_act;
+//assign o_debug[17:16]  = w_per_egress_rdy;
+//assign o_debug[30:27]  = o_in_data;
+
 assign o_debug[0]      = i_pcie_data_read_flg;
 assign o_debug[1]      = i_pcie_data_write_flg;
 assign o_debug[2]      = i_pcie_dma_fifo_sel;
@@ -442,22 +453,12 @@ assign o_debug[10]     = o_ih_ready;
 assign o_debug[11]     = o_oh_ready;
 assign o_debug[15:12]  = w_oh_state;
 assign o_debug[17:16]  = w_per_egress_act;
-//assign o_debug[5]      = o_pcie_ingress_fifo_stb;
-//assign o_debug[6]      = o_pcie_ingress_fifo_act;
-//assign o_debug[7]      = i_pcie_ingress_fifo_rdy;
-//assign o_debug[8]      = o_pcie_egress_fifo_stb;
-//assign o_debug[10:9]   = o_pcie_egress_fifo_act;
-//assign o_debug[12:11]  = i_pcie_egress_fifo_rdy;
-//assign o_debug[13]     = w_per_egress_stb;
-//assign o_debug[15:14]  = w_per_egress_act;
-//assign o_debug[17:16]  = w_per_egress_rdy;
 assign o_debug[18]     = w_per_ingress_stb;
 assign o_debug[19]     = w_per_ingress_act;
 assign o_debug[20]     = w_per_ingress_rdy;
 assign o_debug[24:21]  = w_ih_state;
 assign o_debug[26:25]  = o_in_command;
-//assign o_debug[30:27]  = o_in_data;
-assign o_debug[30:27]  = i_dbg_sm_state;
+assign o_debug[30:27]  = i_dbg_state;
 assign o_debug[31]     = w_egr_per_fin;
 
 

@@ -45,6 +45,7 @@ module tx1_pcie_adapter #(
   ******************************************/
   output                    o_lax_clk,
   output                    o_user_reset_out,
+  output        [3:0]       o_dbg_state,
 
   output                    o_pl_sel_lnk_rate,
   output        [1:0]       o_pl_sel_lnk_width,
@@ -140,6 +141,7 @@ module tx1_pcie_adapter #(
   input                     i_read_fin,
 
   output      [31:0]        o_data_size,
+  output      [31:0]        o_data_count,
   output      [31:0]        o_data_address,
   output                    o_data_fifo_flg,
   output                    o_data_read_flg,
@@ -177,7 +179,7 @@ localparam                                    USER_CLK2_DIV2    = "FALSE";
 localparam                                    USERCLK2_FREQ     = (USER_CLK2_DIV2 == "TRUE") ?
                                                                   (USER_CLK_FREQ == 4) ? 3 :
                                                                   (USER_CLK_FREQ == 3) ? 2 : USER_CLK_FREQ :
-                                                                    USER_CLK_FREQ;
+                                                                   USER_CLK_FREQ;
 //registes/wires
 
 //  wire                                        sys_rst_n;
@@ -969,6 +971,8 @@ buffer_builder #(
   .mem_clk                    (user_clk                   ),
   .rst                        (o_sys_rst                  ),
 
+//  .o_dbg_state                (o_dbg_state                ),
+
   .i_ppfifo_wr_en             (w_bld_buf_en               ),
   .o_ppfifo_wr_fin            (w_bld_buf_fin              ),
 
@@ -1011,6 +1015,9 @@ credit_manager cm (
 ingress_buffer_manager buf_man (
   .clk                        (user_clk                   ),
   .rst                        (o_sys_rst                  ),
+
+  .o_rcv_state                (o_dbg_state                ),
+  //.o_gen_state                (o_dbg_state                ),
 
   //Host Interface
   .i_hst_buf_rdy_stb          (w_update_buf_stb           ),
@@ -1103,6 +1110,7 @@ pcie_control controller (
   .i_interrupt_value          (i_usr_interrupt_value      ),
 
   .o_data_size                (o_data_size                ),
+  .o_data_count               (o_data_count               ),
   .o_data_address             (o_data_address             ),
   .o_data_fifo_flg            (o_data_fifo_flg            ),
   .o_data_read_flg            (o_data_read_flg            ),
@@ -1161,7 +1169,7 @@ pcie_control controller (
   //Configuration Reader Interface
   .o_cfg_read_exec            (o_cfg_read_exec            ),
   .o_cfg_sm_state             (o_cfg_sm_state             ),
-  .o_sm_state                 (o_controller_state         )
+  .o_ctl_state                (o_controller_state         )
 );
 
 

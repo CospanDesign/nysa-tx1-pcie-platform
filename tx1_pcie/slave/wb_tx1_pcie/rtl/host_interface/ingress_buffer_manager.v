@@ -81,6 +81,8 @@ module ingress_buffer_manager #(
   output  reg   [1:0]       o_bld_buf_en,         //Tell Buffer Builder the FIFO can read the block data
   input                     i_bld_buf_fin,        //Buffer Builder reported FIFO has read everything
 
+  output        [3:0]       o_rcv_state,
+  output        [3:0]       o_gen_state,
   output        [15:0]      o_dbg_tag_en,
   output        [15:0]      o_dbg_tag_ingress_fin,
   output  reg               o_dbg_reenable_stb,    //If this is strobed, it indicates that the enable was set high a second time (shouldn't happend)
@@ -258,6 +260,8 @@ assign  byte_cnt15            = r_byte_cnt[15];
 
 assign  o_dbg_tag_en          = r_tag_sm_en;
 assign  o_dbg_tag_ingress_fin = r_tag_sm_fin;
+assign  o_rcv_state           = rcv_state;
+assign  o_gen_state           = gen_state;
 
 
 // END DEBUG SIGNALS

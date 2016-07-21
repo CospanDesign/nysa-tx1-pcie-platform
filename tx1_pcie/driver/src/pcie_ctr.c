@@ -194,8 +194,6 @@ const struct device_attribute reset_fpga_attr = {
 };
 */
 
-
-
 DEVICE_ATTR(unlock_driver, S_IWUSR | S_IRUGO, unlock_driver_show, unlock_driver_store );
 DEVICE_ATTR(reset_fpga,    S_IWUSR | S_IRUGO, reset_fpga_show,    reset_fpga_store    );
 
@@ -242,7 +240,7 @@ irqreturn_t msi_isr(int irq, void *data)
 
   if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_WRITE))
   {
-    //mod_info_dbg("Writing: Buffer Ready Status: 0x%02X\n", dev->config_space[STS_BUF_RDY]);
+    mod_info_dbg("Writing: Buffer Ready Status: 0x%02X\n", dev->config_space[STS_BUF_RDY]);
     //Writing
     if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE))
     {
@@ -256,31 +254,17 @@ irqreturn_t msi_isr(int irq, void *data)
     }
     else
     {
-      //More data to send
-      //Need to tell the blocked function that there are buffers to work with
-      /*
-      if (buf_status == 0x3)
-        printk("BUF STATUS = 0x3\n");
-      while (buf_status > 0)
-      {
-      */
-        if (dev->config_space[STS_BUF_RDY] & 0x01)
-          buf_index = 0;
-        else
-          buf_index = 1;
-        //Clear the previous index position
-        //buf_status &= ~(1 << buf_index);
-        dev->rw_fifo_item[buf_index].indexa = dev->config_space[HDR_INDEX_VALUEA];
-        dev->rw_fifo_item[buf_index].indexb = dev->config_space[HDR_INDEX_VALUEB];
-        //dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
-        dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
-        kfifo_put(&dev->rw_fifo, &buf_index);
-        //Give back the semaphore
-        up(&dev->rw_sem);
-      /*
-
-      }
-      */
+      if (dev->config_space[STS_BUF_RDY] & 0x01)
+        buf_index = 0;
+      else
+        buf_index = 1;
+      //Clear the previous index position
+      dev->rw_fifo_item[buf_index].indexa = dev->config_space[HDR_INDEX_VALUEA];
+      dev->rw_fifo_item[buf_index].indexb = dev->config_space[HDR_INDEX_VALUEB];
+      dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
+      kfifo_put(&dev->rw_fifo, &buf_index);
+      //Give back the semaphore
+      up(&dev->rw_sem);
     }
   }
   else if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_READ))
@@ -498,8 +482,6 @@ void update_aux_buffer_status(nysa_pcie_dev_t *dev, unsigned int buffer_status)
 {
   write_register(dev, HDR_AUX_BUFFER_READY, buffer_status);
 }
-
-
 
 ssize_t nysa_pcie_write_data(nysa_pcie_dev_t *dev, const char __user * user_buf, size_t count)
 {

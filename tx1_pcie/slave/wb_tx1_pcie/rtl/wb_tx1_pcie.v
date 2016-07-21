@@ -133,7 +133,7 @@ module wb_tx1_pcie #(
   input       [31:0]  i_pcie_egress_fifo_data,
 
   //DEBUG
-  output      [3:0]   o_sm_state,
+  output      [3:0]   o_dbg_state,
 
   // Tx
   output              o_pcie_exp_tx_p,
@@ -210,6 +210,7 @@ wire        [31:0]      w_id_value;
 wire        [31:0]      w_command_value;
 wire        [31:0]      w_count_value;
 wire        [31:0]      w_address_value;
+wire        [31:0]      w_pcie_data_count;
 
 wire        [63:0]      m64_axis_rx_tdata;
 wire        [7:0]       m64_axis_rx_tkeep;
@@ -264,6 +265,8 @@ tx1_pcie_adapter pcie_adapter (
   .o_pl_sel_lnk_rate        (w_pl_sel_lnk_rate            ),
   .o_pl_sel_lnk_width       (w_pl_sel_lnk_width           ),
   .o_pl_initial_link_width  (w_pl_initial_link_width      ),
+
+  .o_dbg_state              (o_dbg_state                  ),
 
 /*
   .o_cfg_status             (w_cfg_status                 ),
@@ -344,6 +347,7 @@ tx1_pcie_adapter pcie_adapter (
   .i_read_fin               (i_pcie_read_fin              ),
 
   .o_data_size              (o_pcie_data_size             ),
+  .o_data_count             (w_pcie_data_count            ),
   .o_data_address           (o_pcie_data_address          ),
   .o_data_fifo_flg          (o_pcie_data_fifo_flg         ),
   .o_data_read_flg          (o_pcie_data_read_flg         ),
@@ -387,12 +391,28 @@ assign  o_debug[30]     = w_rx_byte_is_aligned;
 assign  o_debug[31]     = w_clock_locked;
 */
 
-/*
 //PCIE Comm Incomming Debug
 //assign  o_debug[15:0]   = m64_axis_rx_tdata[15:0];
-assign  o_debug[15:0]   = m32_axis_rx_tdata[15:0];
+//assign  o_debug[15:0]   = m32_axis_rx_tdata[15:0];
+//assign  o_debug[15:0]   = o_pcie_data_size;
+//assign  o_debug[15:0]   = w_pcie_data_count[15:0];
 //assign  o_debug[15:0]   = m32_axis_rx_tdata[31:16];
-assign  o_debug[19:16]  = m32_axis_rx_tkeep[3:0];
+//assign  o_debug[19:16]  = m32_axis_rx_tkeep[3:0];
+assign  o_debug[3:0]    = o_dbg_state;
+assign  o_debug[8:4]    = egress_state;
+
+assign  o_debug[9]      = s32_axis_tx_tvalid;
+assign  o_debug[10]     = s32_axis_tx_tready;
+assign  o_debug[11]     = s32_axis_tx_tlast;
+assign  o_debug[12]     = o_pcie_reset;
+assign  o_debug[13]     = o_pcie_per_fifo_sel;
+assign  o_debug[14]     = o_pcie_data_write_flg;
+assign  o_debug[15]     = o_pcie_data_read_flg;
+assign  o_debug[16]     = i_pcie_write_fin;
+assign  o_debug[17]     = i_pcie_read_fin;
+assign  o_debug[18]     = o_pcie_ingress_fifo_rdy;
+assign  o_debug[19]     = i_pcie_ingress_fifo_act;
+
 assign  o_debug[20]     = m32_axis_rx_tvalid;
 assign  o_debug[21]     = m32_axis_rx_tready;
 assign  o_debug[22]     = m32_axis_rx_tlast;
@@ -400,7 +420,6 @@ assign  o_debug[23]     = 1'b0;
 
 assign  o_debug[27:24]  = ingress_state;
 assign  o_debug[31:28]  = controller_state;
-*/
 
 
 
@@ -411,6 +430,8 @@ assign  o_debug[30]     = m32_axis_rx_tlast;
 assign  o_debug[31]     = 1'b0;
 */
 
+/*
+//PCIE Comm Egress Debug
 //assign  o_debug[15:0]   = s64_axis_tx_tdata[15:0];
 //assign  o_debug[15:0]   = s32_axis_tx_tdata[15:0];
 assign  o_debug[15:0]   = s32_axis_tx_tdata[31:16];
@@ -424,6 +445,7 @@ assign  o_debug[23]     = s64_axis_tx_tvalid;;
 //assign  o_debug[27:24]  = ingress_state;
 assign  o_debug[27:24]  = egress_state;
 assign  o_debug[31:28]  = controller_state;
+*/
 
 
 

@@ -101,7 +101,7 @@ assign  w_hdr[0][`PCIE_FLAGS_RANGE]         = i_flags;
 assign  w_hdr[0][`PCIE_DWORD_PKT_CNT_RANGE] = w_pkt_data_count;
 
 //2nd Dword
-assign  w_hdr[1]                            = (i_command == `PCIE_MRD_64B) ? {i_requester_id, i_tag, 8'h00} :
+assign  w_hdr[1]                            = (i_command == `PCIE_MRD_64B) ? {i_requester_id, i_tag, 8'hFF} :
                                                  (i_fifo_size == 1)        ?    32'h0000000F :          //==  1 DWORD
                                                                                 32'h000000FF;           // >  1 DWORD
 

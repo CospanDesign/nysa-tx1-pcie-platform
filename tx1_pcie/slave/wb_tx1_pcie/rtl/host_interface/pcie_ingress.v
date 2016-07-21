@@ -500,6 +500,10 @@ always @ (posedge clk) begin
         end
         else begin
           o_cplt_pkt_stb              <=  1;
+          if (i_axi_ingress_last) begin
+            state                     <=  IDLE;
+            o_axi_ingress_ready       <=  0;
+          end
           state                       <=  FLUSH;
         end
 
