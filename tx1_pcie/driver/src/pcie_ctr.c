@@ -194,6 +194,8 @@ const struct device_attribute reset_fpga_attr = {
 };
 */
 
+
+
 DEVICE_ATTR(unlock_driver, S_IWUSR | S_IRUGO, unlock_driver_show, unlock_driver_store );
 DEVICE_ATTR(reset_fpga,    S_IWUSR | S_IRUGO, reset_fpga_show,    reset_fpga_store    );
 
@@ -232,7 +234,7 @@ irqreturn_t msi_isr(int irq, void *data)
   for (i = 0; i < CONFIG_REGISTER_COUNT; i++)
   {
     dev->config_space[i] = be32_to_cpu(dev->config_space[i]);
-    mod_info_dbg("\t0x%08X\n", dev->config_space[i]);
+    //mod_info_dbg("\t0x%08X\n", dev->config_space[i]);
   }
 
   //mod_info_dbg("Device Status: 0x%08X\n", dev->config_space[STS_DEV_STATUS]);
@@ -240,7 +242,7 @@ irqreturn_t msi_isr(int irq, void *data)
 
   if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_WRITE))
   {
-    mod_info_dbg("Writing: Buffer Ready Status: 0x%02X\n", dev->config_space[STS_BUF_RDY]);
+    //mod_info_dbg("Writing: Buffer Ready Status: 0x%02X\n", dev->config_space[STS_BUF_RDY]);
     //Writing
     if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_DONE))
     {
@@ -254,17 +256,31 @@ irqreturn_t msi_isr(int irq, void *data)
     }
     else
     {
-      if (dev->config_space[STS_BUF_RDY] & 0x01)
-        buf_index = 0;
-      else
-        buf_index = 1;
-      //Clear the previous index position
-      dev->rw_fifo_item[buf_index].indexa = dev->config_space[HDR_INDEX_VALUEA];
-      dev->rw_fifo_item[buf_index].indexb = dev->config_space[HDR_INDEX_VALUEB];
-      dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
-      kfifo_put(&dev->rw_fifo, &buf_index);
-      //Give back the semaphore
-      up(&dev->rw_sem);
+      //More data to send
+      //Need to tell the blocked function that there are buffers to work with
+      /*
+      if (buf_status == 0x3)
+        printk("BUF STATUS = 0x3\n");
+      while (buf_status > 0)
+      {
+      */
+        if (dev->config_space[STS_BUF_RDY] & 0x01)
+          buf_index = 0;
+        else
+          buf_index = 1;
+        //Clear the previous index position
+        //buf_status &= ~(1 << buf_index);
+        dev->rw_fifo_item[buf_index].indexa = dev->config_space[HDR_INDEX_VALUEA];
+        dev->rw_fifo_item[buf_index].indexb = dev->config_space[HDR_INDEX_VALUEB];
+        //dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
+        dev->rw_fifo_item[buf_index].pos  = (dev->config_space[STS_BUF_POS] << 2);
+        kfifo_put(&dev->rw_fifo, &buf_index);
+        //Give back the semaphore
+        up(&dev->rw_sem);
+      /*
+
+      }
+      */
     }
   }
   else if (dev->config_space[STS_DEV_STATUS] & (1 << STATUS_BIT_READ))
@@ -483,6 +499,8 @@ void update_aux_buffer_status(nysa_pcie_dev_t *dev, unsigned int buffer_status)
   write_register(dev, HDR_AUX_BUFFER_READY, buffer_status);
 }
 
+
+
 ssize_t nysa_pcie_write_data(nysa_pcie_dev_t *dev, const char __user * user_buf, size_t count)
 {
   int retval = 0;
@@ -654,6 +672,7 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
   };
 
   //Update the buffer status on the FPGA so that it knows it can write to both the buffers
+  mod_info_dbg("Tell the device that our buffers are ready\n");
   update_buffer_status(dev, 0x3); //bitmask of both buffers ready
 
   //There should be a count of zero on the semaphore, when the interrupt context reads a packet it should call this
@@ -661,7 +680,7 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
 
   while (pos < count)
   {
-    //mod_info_dbg("Wait for semaphore...\n");
+    mod_info_dbg("Wait for semaphore...\n");
     if (kfifo_is_empty(&dev->rw_fifo))
     {
       if (down_interruptible(&dev->rw_sem))
