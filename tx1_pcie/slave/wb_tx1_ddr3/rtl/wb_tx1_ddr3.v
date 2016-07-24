@@ -39,7 +39,7 @@ SOFTWARE.
   SDB_ABI_CLASS:0
 
   Set the ABI Major Version: (8-bits)
-  SDB_ABI_VERSION_MAJOR:0x0F
+  SDB_ABI_VERSION_MAJOR:0x06
 
   Set the ABI Minor Version (8-bits)
   SDB_ABI_VERSION_MINOR:0
@@ -64,11 +64,31 @@ SOFTWARE.
 */
 
 
-module wb_tx1_ddr3 (
+module wb_tx1_ddr3 #(
+  parameter          BUF_DEPTH       = 10,
+  parameter          MEM_ADDR_DEPTH  = 28
+)(
   input               clk,
   input               rst,
 
-  //Add signals to control your device here
+  // Inouts
+  inout    [7:0]      ddr3_dq,
+  inout               ddr3_dqs_n,
+  inout               ddr3_dqs_p,
+
+  // Outputs
+  output    [13:0]    ddr3_addr,
+  output    [2:0]     ddr3_ba,
+  output              ddr3_ras_n,
+  output              ddr3_cas_n,
+  output              ddr3_we_n,
+  output              ddr3_reset_n,
+  output              ddr3_ck_p,
+  output              ddr3_ck_n,
+  output              ddr3_cke,
+  output              ddr3_cs_n,
+  output              ddr3_dm,
+  output              ddr3_odt,
 
   //Wishbone Bus Signals
   input               i_wbs_we,
@@ -80,102 +100,504 @@ module wb_tx1_ddr3 (
   output  reg [31:0]  o_wbs_dat,
   input       [31:0]  i_wbs_adr,
 
+  //DMA In Interface
+  input               i_idma0_enable,
+  output              o_idma0_finished,
+  input       [31:0]  i_idma0_addr,
+  input               i_idma0_busy,
+  input       [23:0]  i_idma0_count,
+  input               i_idma0_flush,
+
+  input               i_idma0_strobe,
+  output      [1:0]   o_idma0_ready,
+  input       [1:0]   i_idma0_activate,
+  output      [23:0]  o_idma0_size,
+  input       [31:0]  i_idma0_data,
+
+  //DMA Out Interface
+  input               i_odma0_enable,
+  input      [31:0]   i_odma0_address,
+  input      [23:0]   i_odma0_count,
+  input               i_odma0_flush,
+
+  input               i_odma0_strobe,
+  output      [31:0]  o_odma0_data,
+  output              o_odma0_ready,
+  input               i_odma0_activate,
+  output      [23:0]  o_odma0_size,
+
+
   //This interrupt can be controlled from this module or a submodule
   output  reg         o_wbs_int
   //output              o_wbs_int
 );
 
-//Local Parameters
-localparam     ADDR_0  = 32'h00000000;
-localparam     ADDR_1  = 32'h00000001;
-localparam     ADDR_2  = 32'h00000002;
+//Local Registers/Wires
+
+
+reg     [31:0]              r_address;
+wire                        sys_clk_i;
+wire                        clk_ref_i;
+
+wire                        app_zq_req;  //Set to 0
+wire                        app_zq_ack;
+
+wire    [27:0]              app_addr;
+wire    [2:0]               app_cmd;
+wire                        app_en;
+wire                        app_rdy;
+
+wire    [31:0]              app_wdf_data;
+wire                        app_wdf_end;
+wire    [3:0]               app_wdf_mask;
+wire                        app_wdf_wren;
+wire                        app_wdf_rdy;
+
+wire    [31:0]              app_rd_data;
+wire                        app_rd_data_end;
+wire                        app_rd_data_valid;
+
+wire                        app_sr_req;
+wire                        app_sr_active;
+wire                        app_ref_req;
+wire                        app_ref_ack;
+
+wire                        ui_clk_sync_rst;
+
+wire                        init_calib_complete;
+
+
+//Memory Controller Interface
+reg                         write_en; //set high to initiate a write transaction
+reg                         read_en;  //set high to start populating the read FIFO; set low to end immediately
+
+reg     [23:0]              write_count;
+reg     [23:0]              read_count;
 
 //Local Registers/Wires
+wire                        cmd_en;       //Command is strobed into controller
+wire    [2:0]               cmd_instr;    //Instruction
+wire    [27:0]              cmd_addr;     //Word Address
+wire                        cmd_rdy;      //Command FIFO full
+
+wire    [5:0]               cmd_bl;       //Burst Length
+
+wire                        wr_en;        //Write Data strobe
+wire    [3:0]               wr_mask;      //Write Strobe Mask (Not used; always set to 0)
+wire    [31:0]              wr_data;      //Data to write into memory
+wire                        wr_full;      //Write FIFO is full
+wire    [6:0]               wr_count;     //Number of words in the write FIFO; this is slow to respond
+
+wire                        rd_en;        //Enable a read from memory FIFO
+wire    [31:0]              rd_data;      //data read from FIFO
+wire                        rd_full;      //FIFO is full
+wire                        rd_empty;     //FIFO is empty
+wire    [6:0]               rd_count;     //Number of elements inside the FIFO (This is slow to respond; so don't use it as a clock to clock estimate of how much data is available
+wire                        rd_overflow;  //the FIFO is overflowed and data is lost
+wire                        rd_error;     //FIFO pointers are out of sync and a reset is required
+
+
 //Submodules
+wire                        clk_400mhz;
+wire                        clk_locked;
+
+//PPFIFO Interface
+reg                         if_write_strobe;
+wire    [1:0]               if_write_ready;
+reg     [1:0]               if_write_activate;
+wire    [23:0]              if_write_size;
+wire                        if_starved;
+
+reg                         of_read_strobe;
+wire                        of_read_ready;
+reg                         of_read_activate;
+wire    [23:0]              of_read_size;
+wire    [31:0]              of_read_data;
+
+wire                            w_ibuf_go;
+wire                            w_ibuf_bsy;
+wire                            w_ibuf_ddr3_fault;
+wire    [BUF_DEPTH - 1:0]       w_ibuf_count;
+wire    [BUF_DEPTH - 1:0]       w_ibuf_start_addrb;
+wire    [BUF_DEPTH - 1:0]       w_ibuf_addrb;
+wire    [31:0]                  w_ibuf_doutb;
+wire    [MEM_ADDR_DEPTH - 1:0]  w_ibuf_ddr3_addrb;
+
+wire                            w_obuf_go;
+wire                            w_obuf_bsy;
+wire                            w_obuf_ddr3_fault;
+wire    [BUF_DEPTH - 1:0]       w_obuf_count;
+wire    [BUF_DEPTH - 1:0]       w_obuf_start_addra;
+wire    [BUF_DEPTH - 1:0]       w_obuf_addra;
+reg     [31:0]                  r_buf_count;
+wire    [31:0]                  w_obuf_dina;
+wire                            w_obuf_wea;
+wire    [MEM_ADDR_DEPTH - 1:0]  w_obuf_ddr3_addra;
+
+wire                            w_ingress_en;
+wire                            w_egress_en;
+
+reg                             r_prev_cyc;
+wire                            w_read_address_en;
+
+
+
+wire                            w_app_phy_init_done;
+
+//Comment for normal operation, uncomment for simulation
+`define SIM
+
+`ifdef SIM
+reg                         ui_clk;
+always @ (*)  ui_clk = clk;
+assign      ui_clk_sync_rst = rst;
+ddr3_ui_sim sim (
+  .ui_clk              (ui_clk                ),
+  .rst                 (rst                   ),
+
+  .o_app_phy_init_done (w_app_phy_init_done   ),
+
+  .i_app_en            (app_en                ),
+  .i_app_cmd           (app_cmd               ),
+  .i_app_addr          (app_addr              ),
+  .o_app_rdy           (app_rdy               ),
+
+  .i_app_wdf_data      (app_wdf_data          ),
+  .i_app_wdf_end       (app_wdf_end           ),
+  .o_app_wdf_rdy       (app_wdf_rdy           ),
+  .i_app_wdf_wren      (app_wdf_wren          ),
+
+  .o_app_rd_data       (app_rd_data           ),
+  .o_app_rd_data_end   (app_rd_data_end       ),
+  .o_app_rd_data_valid (app_rd_data_valid     )
+);
+
+`else
+wire                        ui_clk;
+clk_wiz_v3_6_0 pll(
+  .CLK_IN1             (clk                  ),
+  .CLK_OUT1            (clk_400mhz           ),
+  .LOCKED              (clk_locked           )
+);
+
+tx1_ddr3 ddr3_if(
+  .ddr3_dq             (ddr3_dq             ),
+  .ddr3_dqs_n          (ddr3_dqs_n          ),
+  .ddr3_dqs_p          (ddr3_dqs_p          ),
+
+
+  .ddr3_addr           (ddr3_addr           ),
+  .ddr3_ba             (ddr3_ba             ),
+  .ddr3_ras_n          (ddr3_ras_n          ),
+  .ddr3_cas_n          (ddr3_cas_n          ),
+  .ddr3_we_n           (ddr3_we_n           ),
+  .ddr3_reset_n        (ddr3_reset_n        ),
+  .ddr3_ck_p           (ddr3_ck_p           ),
+  .ddr3_ck_n           (ddr3_ck_n           ),
+  .ddr3_cke            (ddr3_cke            ),
+  .ddr3_cs_n           (ddr3_cs_n           ),
+  .ddr3_dm             (ddr3_dm             ),
+  .ddr3_odt            (ddr3_odt            ),
+
+  .sys_clk_i           (sys_clk_i           ),
+  .clk_ref_i           (clk_ref_i           ),
+
+  .app_zq_req          (app_zq_req          ),
+  .app_zq_ack          (app_zq_ack          ),
+
+
+  .app_addr            (app_addr            ),
+  .app_cmd             (app_cmd             ),
+  .app_en              (app_en              ),
+  .app_rdy             (app_rdy             ),
+
+  .app_wdf_data        (app_wdf_data        ),
+  .app_wdf_end         (app_wdf_end         ),
+  .app_wdf_mask        (app_wdf_mask        ),
+  .app_wdf_wren        (app_wdf_wren        ),
+  .app_wdf_rdy         (app_wdf_rdy         ),
+
+  .app_rd_data         (app_rd_data         ),
+  .app_rd_data_end     (app_rd_data_end     ),
+  .app_rd_data_valid   (app_rd_data_valid   ),
+
+  .app_sr_req          (app_sr_req          ),
+  .app_sr_active       (app_sr_active       ),
+  .app_ref_req         (app_ref_req         ),
+  .app_ref_ack         (app_ref_ack         ),
+
+  .ui_clk              (ui_clk              ),
+  .ui_clk_sync_rst     (ui_clk_sync_rst     ),
+
+  .init_calib_complete (w_app_phy_init_done ),
+  .sys_rst             (rst                 )
+);
+
+`endif
+
+ddr3_ui#(
+  .BUF_DEPTH          (BUF_DEPTH          ),
+  .MEM_ADDR_DEPTH     (MEM_ADDR_DEPTH     )
+)
+ui(
+  .ui_clk              (ui_clk                ),
+  .rst                 (rst || ui_clk_sync_rst),
+
+  .i_app_phy_init_done (w_app_phy_init_done   ),
+
+  .o_app_en            (app_en                ),
+  .o_app_cmd           (app_cmd               ),
+  .o_app_addr          (app_addr              ),
+  .i_app_rdy           (app_rdy               ),
+                                              
+  .o_app_wdf_data      (app_wdf_data          ),
+  .o_app_wdf_end       (app_wdf_end           ),
+  .i_app_wdf_rdy       (app_wdf_rdy           ),
+  .o_app_wdf_wren      (app_wdf_wren          ),
+                                              
+  .i_app_rd_data       (app_rd_data           ),
+  .i_app_rd_data_end   (app_rd_data_end       ),
+  .i_app_rd_data_valid (app_rd_data_valid     ),
+                                              
+  .i_ibuf_go           (w_ibuf_go             ),
+  .o_ibuf_bsy          (w_ibuf_bsy            ),
+  .o_ibuf_ddr3_fault   (w_ibuf_ddr3_fault     ),
+  .i_ibuf_count        (w_ibuf_count          ),
+  .i_ibuf_start_addrb  (w_ibuf_start_addrb    ),
+  .o_ibuf_addrb        (w_ibuf_addrb          ),
+  .i_ibuf_doutb        (w_ibuf_doutb          ),
+  .i_ibuf_ddr3_addrb   (w_ibuf_ddr3_addrb     ),
+                                              
+  .i_obuf_go           (w_obuf_go             ),
+  .o_obuf_bsy          (w_obuf_bsy            ),
+  .o_obuf_ddr3_fault   (w_obuf_ddr3_fault     ),
+  .i_obuf_count        (w_obuf_count          ),
+  .i_obuf_start_addra  (w_obuf_start_addra    ),
+  .o_obuf_addra        (w_obuf_addra          ),
+  .o_obuf_dina         (w_obuf_dina           ),
+  .o_obuf_wea          (w_obuf_wea            ),
+  .i_obuf_ddr3_addra   (w_obuf_ddr3_addra     )
+);
+
+
+ddr3_arbiter_controller #(
+  .BUF_DEPTH          (BUF_DEPTH          ),
+  .MEM_ADDR_DEPTH     (MEM_ADDR_DEPTH     )
+)controller(
+  .clk                (clk                 ),
+  .rst                (rst                 ),
+
+  .ui_clk             (ui_clk              ),
+  .ui_rst             (ui_clk_sync_rst     ),
+
+  //DMA In Interface 0 (DMA Ingress)
+  .i_idma0_enable     (i_idma0_enable      ),
+  .o_idma0_finished   (o_idma0_finished    ),
+  .i_idma0_addr       (i_idma0_addr        ),
+  .i_idma0_busy       (i_idma0_busy        ),
+  .i_idma0_count      (i_idma0_count       ),
+  .i_idma0_flush      (i_idma0_flush       ),
+
+  .i_idma0_strobe     (i_idma0_strobe      ),
+  .o_idma0_ready      (o_idma0_ready       ),
+  .i_idma0_activate   (i_idma0_activate    ),
+  .o_idma0_size       (o_idma0_size        ),
+  .i_idma0_data       (i_idma0_data        ),
+
+  //DMA In Interface 1 (Wishbone Ingress)
+  .i_idma1_enable     (w_ingress_en        ),
+  .o_idma1_finished   (                    ),
+  .i_idma1_addr       (r_address           ),
+  .i_idma1_busy       (1'b0                ), //Doesn't matter
+  .i_idma1_count      (24'b0               ), //Count doesn't matter, wait for the enable to go low to figure out when done
+  .i_idma1_flush      (1'b0                ),
+
+  .i_idma1_strobe     (if_write_strobe     ),
+  .o_idma1_ready      (if_write_ready      ),
+  .i_idma1_activate   (if_write_activate   ),
+  .o_idma1_size       (if_write_size       ),
+  .i_idma1_data       (i_wbs_dat           ),
+
+  //DMA Out Interface 0 (DMA Egress)
+  .i_odma0_enable     (i_odma0_enable      ),
+  .i_odma0_address    (i_odma0_address     ),
+  .i_odma0_count      (i_odma0_count       ),
+  .i_odma0_flush      (i_odma0_flush       ),
+
+  .i_odma0_strobe     (i_odma0_strobe      ),
+  .o_odma0_data       (o_odma0_data        ),
+  .o_odma0_ready      (o_odma0_ready       ),
+  .i_odma0_activate   (i_odma0_activate    ),
+  .o_odma0_size       (o_odma0_size        ),
+
+  //DMA Out Interface 1 (Wishbone Egress)
+  .i_odma1_enable     (w_egress_en         ),
+  .i_odma1_address    (r_address           ),
+  .i_odma1_count      (24'h400             ),
+  .i_odma1_flush      (1'b0                ), //Not used
+
+  .i_odma1_strobe     (of_read_strobe      ),
+  .o_odma1_data       (of_read_data        ),
+  .o_odma1_ready      (of_read_ready       ),
+  .i_odma1_activate   (of_read_activate    ),
+  .o_odma1_size       (of_read_size        ),
+
+  //BRAM Interface
+  .o_ibuf_go          (w_ibuf_go           ),
+  .i_ibuf_bsy         (w_ibuf_bsy          ),
+  .i_ibuf_ddr3_fault  (w_ibuf_ddr3_fault   ),
+  .o_ibuf_count       (w_ibuf_count        ),
+  .o_ibuf_start_addrb (w_ibuf_start_addrb  ),
+  .i_ibuf_addrb       (w_ibuf_addrb        ),
+  .o_ibuf_doutb       (w_ibuf_doutb        ),
+  .o_ibuf_ddr3_addrb  (w_ibuf_ddr3_addrb   ),
+                                          
+  .o_obuf_go          (w_obuf_go           ),
+  .i_obuf_bsy         (w_obuf_bsy          ),
+  .i_obuf_ddr3_fault  (w_obuf_ddr3_fault   ),
+  .o_obuf_count       (w_obuf_count        ),
+  .o_obuf_start_addra (w_obuf_start_addra  ),
+  .i_obuf_addra       (w_obuf_addra        ),
+  .i_obuf_dina        (w_obuf_dina         ),
+  .i_obuf_wea         (w_obuf_wea          ),
+  .o_obuf_ddr3_addra  (w_obuf_ddr3_addra   )
+);
+
+
+//XXX: SIMULATION STUFF
+//FOr Simulation Only!
+
+//XXX: SIMULATION STUFF!
+assign  w_ingress_en      = (i_wbs_cyc & i_wbs_we);
+assign  w_egress_en       = (i_wbs_cyc & !i_wbs_we);
+
+assign  w_read_address_en  = i_wbs_cyc && !r_prev_cyc; //Only read address on cycle edge
+
 //Asynchronous Logic
+assign  sys_clk_i         = clk;
+//assign  sys_clk_i         = 0;
+assign  clk_ref_i         = clk_400mhz;
+
+assign  app_zq_req        = 0;  //Set to 0
+assign  app_sr_req        = 0; //Reserved, set to zero
+assign  app_ref_req       = 0; //Core Manages Refresh Requests
+
 //Synchronous Logic
-
 always @ (posedge clk) begin
+  //Deasserts Strobes
+  if_write_strobe            <= 0;
+  of_read_strobe             <= 0;
   if (rst) begin
-    o_wbs_dat <= 32'h0;
-    o_wbs_ack <= 0;
-    o_wbs_int <= 0;
-  end
+    o_wbs_dat                <= 32'h0;
+    o_wbs_ack                <= 0;
+    o_wbs_int                <= 0;
 
+    write_en                 <= 0;
+    read_en                  <= 0;
+
+    if_write_strobe          <= 0;
+    if_write_activate        <= 0;
+
+    of_read_strobe           <= 0;
+    of_read_activate         <= 0;
+
+    write_count              <= 0;
+    read_count               <= 0;
+    r_address                <= 0;
+    r_prev_cyc               <= 0;
+  end
   else begin
+    //Get the address when cycle goes high
+    if (w_read_address_en) begin
+      r_address               <=  i_wbs_adr;
+    end
+
+    //Get a Ping Pong FIFO Writer
+    if ((if_write_ready > 0) && (if_write_activate == 0)) begin
+      write_count             <=  0;
+      if (if_write_ready[0]) begin
+        if_write_activate[0]  <=  1;
+      end
+      else begin
+        if_write_activate[1]  <=  1;
+      end
+    end
+
+    //Get the Ping Pong FIFO Reader
+    if (of_read_ready && !of_read_activate) begin
+      read_count              <=  0;
+      of_read_activate        <=  1;
+    end
+
     //when the master acks our ack, then put our ack down
     if (o_wbs_ack && ~i_wbs_stb)begin
       o_wbs_ack <= 0;
     end
 
-    if (i_wbs_stb && i_wbs_cyc) begin
-      //master is requesting somethign
-      if (!o_wbs_ack) begin
-        if (i_wbs_we) begin
-          //write request
-          case (i_wbs_adr)
-            ADDR_0: begin
-              //writing something to address 0
-              //do something
 
-              //NOTE THE FOLLOWING LINE IS AN EXAMPLE
-              //  THIS IS WHAT THE USER WILL READ FROM ADDRESS 0
-              $display("ADDR: %h user wrote %h", i_wbs_adr, i_wbs_dat);
-            end
-            ADDR_1: begin
-              //writing something to address 1
-              //do something
-
-              //NOTE THE FOLLOWING LINE IS AN EXAMPLE
-              //  THIS IS WHAT THE USER WILL READ FROM ADDRESS 0
-              $display("ADDR: %h user wrote %h", i_wbs_adr, i_wbs_dat);
-            end
-            ADDR_2: begin
-              //writing something to address 3
-              //do something
-
-              //NOTE THE FOLLOWING LINE IS AN EXAMPLE
-              //  THIS IS WHAT THE USER WILL READ FROM ADDRESS 0
-              $display("ADDR: %h user wrote %h", i_wbs_adr, i_wbs_dat);
-            end
-            //add as many ADDR_X you need here
-            default: begin
-            end
-          endcase
-        end
-        else begin
-          //read request
-          case (i_wbs_adr)
-            ADDR_0: begin
-              //reading something from address 0
-              //NOTE THE FOLLOWING LINE IS AN EXAMPLE
-              //  THIS IS WHAT THE USER WILL READ FROM ADDRESS 0
-              $display("user read %h", ADDR_0);
-              o_wbs_dat <= ADDR_0;
-            end
-            ADDR_1: begin
-              //reading something from address 1
-              //NOTE THE FOLLOWING LINE IS AN EXAMPLE
-              //  THIS IS WHAT THE USER WILL READ FROM ADDRESS 0
-              $display("user read %h", ADDR_1);
-              o_wbs_dat <= ADDR_1;
-            end
-            ADDR_2: begin
-              //reading soething from address 2
-              //NOTE THE FOLLOWING LINE IS AN EXAMPLE
-              //  THIS IS WHAT THE USER WILL READ FROM ADDRESS 0
-              $display("user read %h", ADDR_2);
-              o_wbs_dat <= ADDR_2;
-            end
-            //add as many ADDR_X you need here
-            default: begin
-            end
-          endcase
-        end
-      o_wbs_ack <= 1;
+    //A transaction has starting
+    if (i_wbs_cyc) begin
+      if (i_wbs_we) begin
+        write_en              <=  1;
+      end
+      else begin
+        read_en               <=  1;
+      end
     end
+    else begin
+      write_en                <=  0;
+      read_en                 <=  0;
+      //A transaction has ended
+      //Close any FIFO that is open
+      if_write_activate       <=  0;
+      of_read_activate        <=  0;
     end
+
+
+
+/*
+//XXX: Remove optimization for simultion purposes
+    if ((if_write_activate > 0) && (write_count > 0)&& (if_write_ready > 0)) begin
+      //Other side is idle, give it something to do
+      if_write_activate       <= 0;
+    end
+    //Strobe
+    else if (i_wbs_stb && i_wbs_cyc && !o_wbs_ack) begin
+*/
+    if (i_wbs_stb && i_wbs_cyc && !o_wbs_ack) begin
+      //master is requesting something
+      if (write_en) begin
+        //write request
+        if (if_write_activate > 0) begin
+          if (write_count < if_write_size) begin
+            if_write_strobe   <=  1;
+            o_wbs_ack         <=  1;
+            write_count       <=  write_count + 24'h1;
+          end
+          else begin
+            if_write_activate <=  0;
+          end
+        end
+      end
+      else begin
+        //read request
+        if (of_read_activate) begin
+          if (read_count < of_read_size) begin
+            read_count        <=  read_count + 1;
+            o_wbs_dat         <=  of_read_data;
+            o_wbs_ack         <=  1;
+            of_read_strobe    <=  1;
+          end
+          else begin
+            of_read_activate  <=  0;
+          end
+        end
+      end
+    end
+    r_prev_cyc                <=  i_wbs_cyc;
   end
 end
-
 endmodule
+
+
+

@@ -1,19 +1,19 @@
 CONFIG PART = xc7k70t-fbg484-1;
 
-NET             "clk"       LOC = V19 | IOSTANDARD = LVCMOS33;
-NET             "clk_BUFGP"  TNM = "tnm_main_clk_group";
+NET             "sys_clk"       LOC = V19 | IOSTANDARD = LVCMOS33;
+#NET             "clk_BUFGP"  TNM = "tnm_main_clk_group";
 #NET             "clk"         TNM = "tnm_main_clk_group";
 TIMESPEC        "ts_clk"        = PERIOD "tnm_main_clk_group" 10.000 ns HIGH 50%;
 
 
-NET "uart_rx"    LOC = Y18 | IOSTANDARD = LVCMOS33;
-NET "uart_tx"    LOC = V22 | IOSTANDARD = LVCMOS33;
+NET             "uart_rx"    LOC = Y18 | IOSTANDARD = LVCMOS33;
+NET             "uart_tx"    LOC = V22 | IOSTANDARD = LVCMOS33;
 
-NET "rst"        TIG;
-NET "rst"        LOC = U22 | IOSTANDARD = LVCMOS33 | PULLUP | NODELAY;
+NET             "rst"        TIG;
+NET             "rst"        LOC = U22 | IOSTANDARD = LVCMOS33 | PULLUP | NODELAY;
 
-NET "exp_3"      LOC = U21 | IOSTANDARD = LVCMOS33;
-NET "exp_4"      LOC = T21 | IOSTANDARD = LVCMOS33;
-NET "exp_5"      LOC = T18 | IOSTANDARD = LVCMOS33;
+NET             "exp_3"      LOC = U21 | IOSTANDARD = LVCMOS33;
+NET             "exp_4"      LOC = T21 | IOSTANDARD = LVCMOS33;
+NET             "exp_5"      LOC = T18 | IOSTANDARD = LVCMOS33;
 
 

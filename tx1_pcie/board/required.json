@@ -57,19 +57,86 @@
       }
     },
     "dma":{
-        "filename":"wb_dma.v"
+      "filename":"wb_dma.v"
     }
-
   },
   "MEMORY":{
     "ddr3_mem":{
-      "filename":"wb_tx1_dma.v"
+      "filename":"wb_tx1_ddr3.v",
+      "cores":[
+        "tx1_ddr3.ngc"
+      ],
+      "constraint_files":[
+        "tx1_ddr3.ucf"
+      ],
+      "bind":{
+        "ddr3_dq[7:0]":{
+          "direction":"inout",
+          "loc":"ddr3_dq[7:0]"
+        },
+        "ddr3_addr[13:0]":{
+          "direction":"output",
+          "loc":"ddr3_addr[13:0]"
+        },
+        "ddr3_ba[2:0]":{
+          "direction":"output",
+          "loc":"ddr3_ba[2:0]"
+        },
+        "ddr3_ras_n":{
+          "direction":"output",
+          "loc":"ddr3_ras_n"
+        },
+        "ddr3_cas_n":{
+          "direction":"output",
+          "loc":"ddr3_cas_n"
+        },
+        "ddr3_we_n":{
+          "direction":"output",
+          "loc":"ddr3_we_n"
+        },
+        "ddr3_odt":{
+          "direction":"output",
+          "loc":"ddr3_odt"
+        },
+        "ddr3_reset_n":{
+          "direction":"output",
+          "loc":"ddr3_reset_n"
+        },
+        "ddr3_cke":{
+          "direction":"output",
+          "loc":"ddr3_cke"
+        },
+        "ddr3_dm":{
+          "direction":"output",
+          "loc":"ddr3_dm"
+        },
+        "ddr3_dqs_p":{
+          "direction":"inout",
+          "loc":"ddr3_dqs_p"
+        },
+        "ddr3_dqs_n":{
+          "direction":"inout",
+          "loc":"ddr3_dqs_n"
+        },
+        "ddr3_ck_p":{
+          "direction":"output",
+          "loc":"ddr3_ck_p"
+        },
+        "ddr3_ck_n":{
+          "direction":"output",
+          "loc":"ddr3_ck_n"
+        },
+        "ddr3_cs_n":{
+          "direction":"output",
+          "loc":"ddr3_cs_n"
+        }
+      }
     }
   },
   "bind":{
-      "clk":{
+      "sys_clk":{
           "direction":"input",
-          "loc":"clk"
+          "loc":"sys_clk"
       },
       "rst":{
           "direction":"input",

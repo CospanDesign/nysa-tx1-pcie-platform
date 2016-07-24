@@ -23,13 +23,10 @@ input   [31:0]    test_id,
 
 input             ih_reset,
 output            device_interrupt
-
 );
-
 
 //Parameters
 //Registers/Wires
-
 reg               r_rst;
 reg               r_in_ready;
 reg   [31:0]      r_in_command;
@@ -127,6 +124,33 @@ wire              mem_i_ack;
 wire              mem_i_int;
 
 
+//DMA In Interface
+wire                w_idma0_enable;
+wire                w_idma0_finished;
+wire        [31:0]  w_idma0_addr;
+wire                w_idma0_busy;
+wire        [23:0]  w_idma0_count;
+wire                w_idma0_flush;
+
+wire                w_idma0_strobe;
+wire        [1:0]   w_idma0_ready;
+wire        [1:0]   w_idma0_activate;
+wire        [23:0]  w_idma0_size;
+wire        [31:0]  w_idma0_data;
+
+//DMA Out Interface
+wire                w_odma0_enable;
+wire       [31:0]   w_odma0_address;
+wire       [23:0]   w_odma0_count;
+wire                w_odma0_flush;
+
+wire                w_odma0_strobe;
+wire        [31:0]  w_odma0_data;
+wire                w_odma0_ready;
+wire                w_odma0_activate;
+wire        [23:0]  w_odma0_size;
+
+
 //Submodules
 wishbone_master wm (
   .clk            (clk            ),
@@ -184,7 +208,35 @@ wb_tx1_ddr3 s1 (
   .o_wbs_ack            (w_wbs1_ack           ),
   .o_wbs_dat            (w_wbs1_dat_o         ),
   .i_wbs_adr            (w_wbs1_adr           ),
-  .o_wbs_int            (w_wbs1_int           )
+  .o_wbs_int            (w_wbs1_int           ),
+
+
+  //DMA In Interface
+  .i_idma0_enable       (w_idma0_enable       ),
+  .o_idma0_finished     (w_idma0_finished     ),
+  .i_idma0_addr         (w_idma0_addr         ),
+  .i_idma0_busy         (w_idma0_busy         ),
+  .i_idma0_count        (w_idma0_count        ),
+  .i_idma0_flush        (w_idma0_flush        ),
+
+  .i_idma0_strobe       (w_idma0_strobe       ),
+  .o_idma0_ready        (w_idma0_ready        ),
+  .i_idma0_activate     (w_idma0_activate     ),
+  .o_idma0_size         (w_idma0_size         ),
+  .i_idma0_data         (w_idma0_data         ),
+
+  //DMA Out Interface
+  .i_odma0_enable       (w_odma0_enable       ),
+  .i_odma0_address      (w_odma0_address      ),
+  .i_odma0_count        (w_odma0_count        ),
+  .i_odma0_flush        (w_odma0_flush        ),
+
+  .i_odma0_strobe       (w_odma0_strobe       ),
+  .o_odma0_data         (w_odma0_data         ),
+  .o_odma0_ready        (w_odma0_ready        ),
+  .i_odma0_activate     (w_odma0_activate     ),
+  .o_odma0_size         (w_odma0_size         )
+
 );
 
 wishbone_interconnect wi (
@@ -335,6 +387,27 @@ assign  mem_o_cyc               = 0;
 assign  mem_o_sel               = 0;
 assign  mem_o_adr               = 0;
 assign  mem_o_dat               = 0;
+
+
+assign  w_idma0_enable          = 0;
+assign  w_idma0_addr            = 0;
+assign  w_idma0_busy            = 0;
+assign  w_idma0_count           = 0;
+assign  w_idma0_flush           = 0;
+                                
+assign  w_idma0_strobe          = 0;
+assign  w_idma0_activate        = 0;
+assign  w_idma0_data            = 0;
+                                
+assign  w_odma0_enable          = 0;
+assign  w_odma0_address         = 0;
+assign  w_odma0_count           = 0;
+assign  w_odma0_flush           = 0;
+                                
+assign  w_odma0_strobe          = 0;
+assign  w_odma0_activate        = 0;
+
+
 
 //Submodules
 //Asynchronous Logic

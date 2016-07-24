@@ -19,6 +19,18 @@ VERILOG_SOURCES += $(NYSA)/verilog/sim/wishbone/interconnect/example_2port_inter
 VERILOG_SOURCES += ${TOPDIR}/sim/arbiter_2_masters.v
 VERILOG_SOURCES += ${TOPDIR}/sim/wishbone_mem_interconnect.v
 
+VERILOG_SOURCES += ${NYSA}/verilog/generic/ppfifo.v
+VERILOG_SOURCES += ${NYSA}/verilog/generic/cross_clock_enable.v
+VERILOG_SOURCES += ${NYSA}/verilog/generic/blk_mem.v
+VERILOG_SOURCES += ${NYSA}/verilog/generic/dpb.v
+
+VERILOG_SOURCES += ${TOPDIR}/rtl/ddr3_ui.v
+VERILOG_SOURCES += ${TOPDIR}/sim/ddr3_ui_sim.v
+VERILOG_SOURCES += ${TOPDIR}/rtl/adapter_ppfifo_dpb.v
+VERILOG_SOURCES += ${TOPDIR}/rtl/ddr3_arbiter_controller.v
+
+
+
 #Simulation Devices
 VERILOG_SOURCES += ${TOPDIR}/rtl/wb_tx1_ddr3.v
 #DUT

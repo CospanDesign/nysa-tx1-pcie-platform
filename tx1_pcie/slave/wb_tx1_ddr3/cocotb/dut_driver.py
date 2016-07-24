@@ -16,7 +16,7 @@ from nysa.host.driver import driver
 
 #Sub Module ID
 #Use 'nysa devices' to get a list of different available devices
-DEVICE_TYPE             = "Experiment"
+DEVICE_TYPE             = "Memory"
 SDB_ABI_VERSION_MINOR   = 0
 SDB_VENDOR_ID           = 0
 
