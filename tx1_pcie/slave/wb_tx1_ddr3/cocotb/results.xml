@@ -13,9 +13,9 @@
     <testcase classname="test_dut" name="full_packet_stream_write_test" time="0.0">
       <skipped />
     </testcase>
-    <testcase classname="test_dut" name="double_block_write_read_test" time="3.4621739387512207" />
-    <testcase classname="test_dut" name="single_block_write_read_test" time="1.839505910873413" />
-    <testcase classname="test_dut" name="single_dword_write_read_test" time="0.26270413398742676" />
-    <testcase classname="test_dut" name="small_dword_write_read_test" time="0.2666959762573242" />
+    <testcase classname="test_dut" name="double_block_write_read_test" time="3.4551210403442383" />
+    <testcase classname="test_dut" name="single_block_write_read_test" time="1.8349981307983398" />
+    <testcase classname="test_dut" name="single_dword_write_read_test" time="0.2640218734741211" />
+    <testcase classname="test_dut" name="small_dword_write_read_test" time="0.26812100410461426" />
   </testsuite>
 </testsuites>

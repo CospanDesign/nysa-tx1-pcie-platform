@@ -84,9 +84,9 @@ reg  [15:0] r_write_clks;
 reg  [15:0] r_read_clks;
 reg   [1:0] r_state;
 
-wire [MEM_ADDR_DEPTH - 1:0] w_app_addr;
+//wire [MEM_ADDR_DEPTH - 1:0] w_app_addr;
 
-assign w_app_addr = o_app_addr[MEM_ADDR_DEPTH + 2:3];
+//assign w_app_addr = o_app_addr[MEM_ADDR_DEPTH - 1:3];
 //o_app_wdf_data is the same as i_ibuf_doutb
 assign o_app_wdf_data = i_ibuf_doutb;
 

@@ -68,9 +68,9 @@ module  pcie_egress (
 //Local Parameters
 localparam  IDLE                    = 4'h0;
 localparam  WAIT_FOR_FIFO           = 4'h1;
-localparam  SEND_HDR      = 4'h2;
-localparam  SEND_DATA               = 4'h4;
-localparam  FINISHED                = 4'h5;
+localparam  SEND_HDR                = 4'h2;
+localparam  SEND_DATA               = 4'h3;
+localparam  FINISHED                = 4'h4;
 
 //Registers/Wires
 reg   [3:0]                 state;
@@ -168,8 +168,14 @@ always @ (posedge clk) begin
           end
           else begin
             if (r_hdr_index >= (w_hdr_size - 1)) begin
-              state             <=  SEND_DATA;
               o_fifo_stb        <=  1;
+              if (r_data_count + 1 >= i_fifo_size) begin
+                o_axi_egress_last   <=  1;
+                state               <=  FINISHED;
+              end
+              else begin
+                state               <=  SEND_DATA;
+              end
               r_data_count      <=  r_data_count + 1;
             end
           end

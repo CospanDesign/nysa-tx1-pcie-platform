@@ -387,6 +387,8 @@ assign o_pcie_ingress_fifo_stb = (i_pcie_per_fifo_sel & i_pcie_data_write_flg) ?
                                  1'b0;
 
 //Egress FIFO
+//XXX: Should there be a DMA version?
+
 assign w_per_egress_rdy        = (i_pcie_per_fifo_sel & i_pcie_data_read_flg) ? i_pcie_egress_fifo_rdy :  2'b0;
 assign w_mem_egress_rdy        = (i_pcie_mem_fifo_sel & i_pcie_data_read_flg) ? i_pcie_egress_fifo_rdy :  2'b0;
 assign o_odma_ready            = (i_pcie_dma_fifo_sel & i_pcie_data_read_flg) ? i_pcie_egress_fifo_rdy :  2'b0;
@@ -448,7 +450,7 @@ assign o_debug[5]      = w_ing_per_fin;
 assign o_debug[6]      = o_pcie_write_fin;
 assign o_debug[7]      = w_per_egress_stb;
 assign o_debug[8]      = i_master_ready;
-assign o_debug[9]      = 1'b0;
+assign o_debug[9]      = o_pcie_read_fin;
 assign o_debug[10]     = o_ih_ready;
 assign o_debug[11]     = o_oh_ready;
 assign o_debug[15:12]  = w_oh_state;

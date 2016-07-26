@@ -33,7 +33,7 @@ SOFTWARE.
 module tx1_pcie_adapter #(
   parameter SERIAL_NUMBER             = 64'h000000000000C594,
   parameter DATA_INGRESS_FIFO_DEPTH   = 10,   //4096
-  parameter DATA_EGRESS_FIFO_DEPTH    = 6     //256
+  parameter DATA_EGRESS_FIFO_DEPTH    = 5     //128
 
 )(
   input                     clk,
@@ -1016,7 +1016,7 @@ ingress_buffer_manager buf_man (
   .clk                        (user_clk                   ),
   .rst                        (o_sys_rst                  ),
 
-  .o_rcv_state                (o_dbg_state                ),
+  //.o_rcv_state                (o_dbg_state                ),
   //.o_gen_state                (o_dbg_state                ),
 
   //Host Interface
@@ -1170,7 +1170,9 @@ pcie_control controller (
   .o_cfg_read_exec            (o_cfg_read_exec            ),
   .o_cfg_sm_state             (o_cfg_sm_state             ),
   .o_ctl_state                (o_controller_state         )
+  //.o_ctl_state                (o_dbg_state                )
 );
+assign  o_dbg_state = o_controller_state;
 
 
 //XXX: Need to think about resets

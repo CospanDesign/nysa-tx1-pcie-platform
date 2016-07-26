@@ -128,10 +128,11 @@ reg     [3:0]       ih_state;
 reg     [23:0]      local_data_count;
 
 //output handler specific states
-localparam           WAIT_FOR_STATUS   = 1;
-localparam           WRITE_TO_FIFO     = 2;
-localparam           WRITE_DATA        = 3;
-localparam           OH_FINISHED       = 4;
+localparam           WAIT_FOR_STATUS      = 1;
+localparam           WRITE_TO_FIFO        = 2;
+localparam           WRITE_DATA           = 3;
+localparam           OH_WAIT_FOR_INACTIVE = 4;
+localparam           OH_FINISHED          = 5;
 
 reg     [3:0]       oh_state;
 reg     [23:0]      out_fifo_count;
@@ -472,7 +473,7 @@ always @ (posedge clk ) begin
             end
             else begin
               o_egress_act        <= 0;
-              oh_state            <= OH_FINISHED;
+              oh_state            <= OH_WAIT_FOR_INACTIVE;
             end
           end
         end
@@ -501,8 +502,13 @@ always @ (posedge clk ) begin
         end
 
         if (out_data_pos >= out_data_count) begin
-          oh_state                      <=  OH_FINISHED;
+          oh_state                      <=  OH_WAIT_FOR_INACTIVE;
           o_egress_act                  <=  0;
+        end
+      end
+      OH_WAIT_FOR_INACTIVE: begin
+        if (i_egress_rdy == 2'b11) begin
+          oh_state                      <=  OH_FINISHED;
         end
       end
       OH_FINISHED: begin

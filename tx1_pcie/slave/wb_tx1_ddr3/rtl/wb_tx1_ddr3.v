@@ -42,7 +42,7 @@ SOFTWARE.
   SDB_ABI_VERSION_MAJOR:0x06
 
   Set the ABI Minor Version (8-bits)
-  SDB_ABI_VERSION_MINOR:0
+  SDB_ABI_VERSION_MINOR:0x03
 
   Set the Module URL (63 Unicode Characters)
   SDB_MODULE_URL:http://www.example.com
@@ -60,7 +60,7 @@ SOFTWARE.
   SDB_WRITEABLE:True
 
   Device Size: Number of Registers
-  SDB_SIZE:3
+  SDB_SIZE:0x8000000
 */
 
 
@@ -89,6 +89,9 @@ module wb_tx1_ddr3 #(
   output              ddr3_cs_n,
   output              ddr3_dm,
   output              ddr3_odt,
+
+  output              ref_clk_out,
+  input               ref_clk_in,
 
   //Wishbone Bus Signals
   input               i_wbs_we,
@@ -245,8 +248,9 @@ wire                            w_read_address_en;
 wire                            w_app_phy_init_done;
 
 //Comment for normal operation, uncomment for simulation
-`define SIM
+//`define SIM
 
+/*
 `ifdef SIM
 reg                         ui_clk;
 always @ (*)  ui_clk = clk;
@@ -273,10 +277,12 @@ ddr3_ui_sim sim (
 );
 
 `else
+*/
 wire                        ui_clk;
 clk_wiz_v3_6_0 pll(
   .CLK_IN1             (clk                  ),
-  .CLK_OUT1            (clk_400mhz           ),
+  //.CLK_OUT1            (clk_400mhz           ),
+  .CLK_OUT1            (ref_clk_out          ),
   .LOCKED              (clk_locked           )
 );
 
@@ -333,13 +339,12 @@ tx1_ddr3 ddr3_if(
   .sys_rst             (rst                 )
 );
 
-`endif
+//`endif
 
-ddr3_ui#(
-  .BUF_DEPTH          (BUF_DEPTH          ),
-  .MEM_ADDR_DEPTH     (MEM_ADDR_DEPTH     )
-)
-ui(
+ddr3_ui #(
+  .BUF_DEPTH          (BUF_DEPTH              ),
+  .MEM_ADDR_DEPTH     (MEM_ADDR_DEPTH         )
+)ui(
   .ui_clk              (ui_clk                ),
   .rst                 (rst || ui_clk_sync_rst),
 
@@ -349,16 +354,16 @@ ui(
   .o_app_cmd           (app_cmd               ),
   .o_app_addr          (app_addr              ),
   .i_app_rdy           (app_rdy               ),
-                                              
+
   .o_app_wdf_data      (app_wdf_data          ),
   .o_app_wdf_end       (app_wdf_end           ),
   .i_app_wdf_rdy       (app_wdf_rdy           ),
   .o_app_wdf_wren      (app_wdf_wren          ),
-                                              
+
   .i_app_rd_data       (app_rd_data           ),
   .i_app_rd_data_end   (app_rd_data_end       ),
   .i_app_rd_data_valid (app_rd_data_valid     ),
-                                              
+
   .i_ibuf_go           (w_ibuf_go             ),
   .o_ibuf_bsy          (w_ibuf_bsy            ),
   .o_ibuf_ddr3_fault   (w_ibuf_ddr3_fault     ),
@@ -367,7 +372,7 @@ ui(
   .o_ibuf_addrb        (w_ibuf_addrb          ),
   .i_ibuf_doutb        (w_ibuf_doutb          ),
   .i_ibuf_ddr3_addrb   (w_ibuf_ddr3_addrb     ),
-                                              
+
   .i_obuf_go           (w_obuf_go             ),
   .o_obuf_bsy          (w_obuf_bsy            ),
   .o_obuf_ddr3_fault   (w_obuf_ddr3_fault     ),
@@ -451,7 +456,7 @@ ddr3_arbiter_controller #(
   .i_ibuf_addrb       (w_ibuf_addrb        ),
   .o_ibuf_doutb       (w_ibuf_doutb        ),
   .o_ibuf_ddr3_addrb  (w_ibuf_ddr3_addrb   ),
-                                          
+
   .o_obuf_go          (w_obuf_go           ),
   .i_obuf_bsy         (w_obuf_bsy          ),
   .i_obuf_ddr3_fault  (w_obuf_ddr3_fault   ),
@@ -464,10 +469,6 @@ ddr3_arbiter_controller #(
 );
 
 
-//XXX: SIMULATION STUFF
-//FOr Simulation Only!
-
-//XXX: SIMULATION STUFF!
 assign  w_ingress_en      = (i_wbs_cyc & i_wbs_we);
 assign  w_egress_en       = (i_wbs_cyc & !i_wbs_we);
 
@@ -476,7 +477,8 @@ assign  w_read_address_en  = i_wbs_cyc && !r_prev_cyc; //Only read address on cy
 //Asynchronous Logic
 assign  sys_clk_i         = clk;
 //assign  sys_clk_i         = 0;
-assign  clk_ref_i         = clk_400mhz;
+//assign  clk_ref_i         = clk_400mhz;
+assign  clk_ref_i         = ref_clk_in;
 
 assign  app_zq_req        = 0;  //Set to 0
 assign  app_sr_req        = 0; //Reserved, set to zero

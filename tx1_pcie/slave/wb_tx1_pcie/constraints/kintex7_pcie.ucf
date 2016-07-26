@@ -174,8 +174,6 @@ TIMESPEC "TS_PIPE_RATE" = FROM "MC_PIPE" TS_CLK_USERCLK*0.5;
 
 #NET "pcie/pcie_adapter/pcie_7x_v1_11_0_i/gt_top_i/pipe_wrapper_i/pipe_reset.pipe_reset_i/cpllreset" TIG;
 
-NET "i_pcie_wake_n"       LOC=D19 | IOSTANDARD = LVCMOS33;
-                        
 NET "i_pcie_reset_n"      TIG;
 NET "i_pcie_reset_n"      LOC=D20 | IOSTANDARD = LVCMOS33 | PULLUP | NODELAY ;
 NET "o_pcie_clkreq"       LOC=E19 | IOSTANDARD = LVCMOS33;

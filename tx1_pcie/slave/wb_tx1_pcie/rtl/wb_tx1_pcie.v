@@ -149,7 +149,7 @@ module wb_tx1_pcie #(
   //PCIE Control
   input               i_pcie_reset_n,
 //  output              o_pcie_wake_n,
-  input               i_pcie_wake_n,
+//  input               i_pcie_wake_n,
   output              o_lax_clk,
   output      [31:0]  o_debug,
   output              o_pcie_clkreq,

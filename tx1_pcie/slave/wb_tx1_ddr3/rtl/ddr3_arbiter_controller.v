@@ -30,7 +30,7 @@ SOFTWARE.
 
 `timescale 1ps / 1ps
 
-`define ING_MAX 1
+//`define ING_MAX 1
 `define EGR_MAX 1
 
 module ddr3_arbiter_controller #(
@@ -144,6 +144,9 @@ localparam  ODMA_WAIT_DDR3        = 4'hC;
 localparam  ODMA_WAIT_PPFIFO_START= 4'hD;
 localparam  ODMA_WAIT_PPFIFO      = 4'hE;
 
+localparam  ING_MAX               = 1;
+localparam  EGR_MAX               = 1;
+
 
 //registes/wires
 reg     [3:0]                   state;
@@ -193,30 +196,30 @@ wire                            w_egress_fifo_act;
 wire    [23:0]                  w_egress_fifo_size;
 wire    [31:0]                  w_egress_fifo_data;
 
-wire    [`ING_MAX:0]            w_ing_enable;
-reg                             r_ing_finished  [0:`ING_MAX];
-wire    [MEM_ADDR_DEPTH - 1:0]  w_ing_mem_addr  [0:`ING_MAX];
-wire                            w_ing_bsy       [0:`ING_MAX];
-wire    [23:0]                  w_ing_count     [0:`ING_MAX];
-wire                            w_ing_flush     [0:`ING_MAX];
+wire    [ING_MAX:0]             w_ing_enable;
+reg                             r_ing_finished  [0:ING_MAX];
+wire    [MEM_ADDR_DEPTH - 1:0]  w_ing_mem_addr  [0:ING_MAX];
+wire                            w_ing_bsy       [0:ING_MAX];
+wire    [23:0]                  w_ing_count     [0:ING_MAX];
+wire                            w_ing_flush     [0:ING_MAX];
 
-wire                            w_ing_fifo_stb  [0:`ING_MAX];
-reg     [1:0]                   r_ing_fifo_rdy  [0:`ING_MAX];
-wire    [1:0]                   w_ing_fifo_act  [0:`ING_MAX];
-reg     [23:0]                  r_ing_fifo_size [0:`ING_MAX];
-wire    [31:0]                  w_ing_fifo_data [0:`ING_MAX];
+wire                            w_ing_fifo_stb  [0:ING_MAX];
+reg     [1:0]                   r_ing_fifo_rdy  [0:ING_MAX];
+wire    [1:0]                   w_ing_fifo_act  [0:ING_MAX];
+reg     [23:0]                  r_ing_fifo_size [0:ING_MAX];
+wire    [31:0]                  w_ing_fifo_data [0:ING_MAX];
 
 
-wire    [`ING_MAX:0]            w_egr_enable;
-wire    [MEM_ADDR_DEPTH - 1:0]  w_egr_mem_addr  [0:`EGR_MAX];
-wire    [23:0]                  w_egr_count     [0:`EGR_MAX];
-wire                            w_egr_flush     [0:`EGR_MAX];
+wire    [ING_MAX:0]             w_egr_enable;
+wire    [MEM_ADDR_DEPTH - 1:0]  w_egr_mem_addr  [0:EGR_MAX];
+wire    [23:0]                  w_egr_count     [0:EGR_MAX];
+wire                            w_egr_flush     [0:EGR_MAX];
 
-wire                            w_egr_fifo_stb  [0:`EGR_MAX];
-reg     [1:0]                   r_egr_fifo_rdy  [0:`EGR_MAX];
-wire    [1:0]                   w_egr_fifo_act  [0:`EGR_MAX];
-reg     [23:0]                  r_egr_fifo_size [0:`EGR_MAX];
-reg     [31:0]                  r_egr_fifo_data [0:`EGR_MAX];
+wire                            w_egr_fifo_stb  [0:EGR_MAX];
+reg     [1:0]                   r_egr_fifo_rdy  [0:EGR_MAX];
+wire    [1:0]                   w_egr_fifo_act  [0:EGR_MAX];
+reg     [23:0]                  r_egr_fifo_size [0:EGR_MAX];
+reg     [31:0]                  r_egr_fifo_data [0:EGR_MAX];
 
 //PPFIFO to BRAM
 wire                            w_ing_bram_fifo_rdy;
@@ -334,7 +337,7 @@ assign  w_ingress_fifo_data = r_ingress_path_en ? w_ing_fifo_data[r_select] : 32
 
 integer i;
 always @ (*) begin
-  for (i = 0; i < `ING_MAX + 1; i = i + 1) begin
+  for (i = 0; i < ING_MAX + 1; i = i + 1) begin
     if (r_ingress_path_en && (r_select == i)) begin
       r_ing_finished[i]   = r_ingress_finished;
       r_ing_fifo_rdy[i]   = w_ingress_fifo_rdy;
@@ -359,7 +362,7 @@ assign  w_egress_fifo_act   = r_egress_path_en ? w_egr_fifo_act[r_select]   : 2'
 
 integer j;
 always @ (*) begin
-  for (j = 0; j < `EGR_MAX + 1; j = j + 1) begin
+  for (j = 0; j < EGR_MAX + 1; j = j + 1) begin
     if (r_egress_path_en && (r_select == j)) begin
       r_egr_fifo_rdy[j]   = w_egress_fifo_rdy;
       r_egr_fifo_size[j]  = w_egress_fifo_size;
@@ -427,7 +430,8 @@ assign w_egr_fifo_act[1]  = i_odma1_activate;
 assign o_odma1_size       = r_egr_fifo_size[1];
 
 
-assign  w_inout_enable    = {(w_egr_enable != 0), (w_ing_enable != 0)};
+assign  w_inout_enable[0] = (w_ing_enable != 0);
+assign  w_inout_enable[1] = (w_egr_enable != 0);
 
 //synchronous logic
 integer k;
@@ -627,10 +631,6 @@ always @ (posedge clk) begin
           state                     <=  ODMA_CONFIGURE;
         end
       end
-
-
-
-
 
       default: begin
         //Shouldn't get here

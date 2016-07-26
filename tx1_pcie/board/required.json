@@ -46,30 +46,31 @@
           "loc":"i_pcie_reset_n",
           "direction":"input"
         },
-        "i_pcie_wake_n":{
-          "loc":"i_pcie_wake_n",
-          "direction":"input"
-        },
         "o_pcie_clkreq":{
           "loc":"o_pcie_clkreq",
           "direction":"output"
         }
       }
-    },
-    "dma":{
-      "filename":"wb_dma.v"
     }
   },
   "MEMORY":{
     "ddr3_mem":{
       "filename":"wb_tx1_ddr3.v",
-      "cores":[
+      "cores_back":[
         "tx1_ddr3.ngc"
       ],
       "constraint_files":[
         "tx1_ddr3.ucf"
       ],
       "bind":{
+        "ref_clk_out":{
+          "direction":"output",
+          "loc":"ddr3_ref_clk_out"
+        },
+        "ref_clk_in":{
+          "direction":"input",
+          "loc":"ddr3_ref_clk_in"
+        },
         "ddr3_dq[7:0]":{
           "direction":"inout",
           "loc":"ddr3_dq[7:0]"
@@ -251,6 +252,95 @@
       "signal":"1'b0"
     }
   },
+  "dependencies":[
+    "tx1_ddr3.v",
+    "mig_7series_v1_9_clk_ibuf.v",
+    "mig_7series_v1_9_infrastructure.v",
+    "mig_7series_v1_9_iodelay_ctrl.v",
+    "mig_7series_v1_9_tempmon.v",
+    "mig_7series_v1_9_arb_mux.v",
+    "mig_7series_v1_9_arb_row_col.v",
+    "mig_7series_v1_9_arb_select.v",
+    "mig_7series_v1_9_bank_cntrl.v",
+    "mig_7series_v1_9_bank_common.v",
+    "mig_7series_v1_9_bank_compare.v",
+    "mig_7series_v1_9_bank_mach.v",
+    "mig_7series_v1_9_bank_queue.v",
+    "mig_7series_v1_9_bank_state.v",
+    "mig_7series_v1_9_col_mach.v",
+    "mig_7series_v1_9_mc.v",
+    "mig_7series_v1_9_rank_cntrl.v",
+    "mig_7series_v1_9_rank_common.v",
+    "mig_7series_v1_9_rank_mach.v",
+    "mig_7series_v1_9_round_robin_arb.v",
+    "mig_7series_v1_9_ecc_buf.v",
+    "mig_7series_v1_9_ecc_dec_fix.v",
+    "mig_7series_v1_9_ecc_gen.v",
+    "mig_7series_v1_9_ecc_merge_enc.v",
+    "mig_7series_v1_9_mem_intfc.v",
+    "mig_7series_v1_9_memc_ui_top_std.v",
+    "mig_7series_v1_9_ddr_byte_group_io.v",
+    "mig_7series_v1_9_ddr_byte_lane.v",
+    "mig_7series_v1_9_ddr_calib_top.v",
+    "mig_7series_v1_9_ddr_if_post_fifo.v",
+    "mig_7series_v1_9_ddr_mc_phy.v",
+    "mig_7series_v1_9_ddr_mc_phy_wrapper.v",
+    "mig_7series_v1_9_ddr_of_pre_fifo.v",
+    "mig_7series_v1_9_ddr_phy_4lanes.v",
+    "mig_7series_v1_9_ddr_phy_ck_addr_cmd_delay.v",
+    "mig_7series_v1_9_ddr_phy_dqs_found_cal.v",
+    "mig_7series_v1_9_ddr_phy_dqs_found_cal_hr.v",
+    "mig_7series_v1_9_ddr_phy_init.v",
+    "mig_7series_v1_9_ddr_phy_oclkdelay_cal.v",
+    "mig_7series_v1_9_ddr_phy_prbs_rdlvl.v",
+    "mig_7series_v1_9_ddr_phy_rdlvl.v",
+    "mig_7series_v1_9_ddr_phy_tempmon.v",
+    "mig_7series_v1_9_ddr_phy_top.v",
+    "mig_7series_v1_9_ddr_phy_wrcal.v",
+    "mig_7series_v1_9_ddr_phy_wrlvl.v",
+    "mig_7series_v1_9_ddr_phy_wrlvl_off_delay.v",
+    "mig_7series_v1_9_ddr_prbs_gen.v",
+    "mig_7series_v1_9_ui_cmd.v",
+    "mig_7series_v1_9_ui_rd_data.v",
+    "mig_7series_v1_9_ui_top.v",
+    "mig_7series_v1_9_ui_wr_data.v",
+    "pcie_7x_v1_11_0.v",
+    "pcie_7x_v1_11_0_axi_basic_rx.v",
+    "pcie_7x_v1_11_0_axi_basic_rx_null_gen.v",
+    "pcie_7x_v1_11_0_axi_basic_rx_pipeline.v",
+    "pcie_7x_v1_11_0_axi_basic_top.v",
+    "pcie_7x_v1_11_0_axi_basic_tx.v",
+    "pcie_7x_v1_11_0_axi_basic_tx_pipeline.v",
+    "pcie_7x_v1_11_0_axi_basic_tx_thrtl_ctl.v",
+    "pcie_7x_v1_11_0_gt_rx_valid_filter_7x.v",
+    "pcie_7x_v1_11_0_gt_top.v",
+    "pcie_7x_v1_11_0_gt_wrapper.v",
+    "pcie_7x_v1_11_0_gtp_pipe_drp.v",
+    "pcie_7x_v1_11_0_gtp_pipe_rate.v",
+    "pcie_7x_v1_11_0_gtp_pipe_reset.v",
+    "pcie_7x_v1_11_0_pcie_7x.v",
+    "pcie_7x_v1_11_0_pcie_bram_7x.v",
+    "pcie_7x_v1_11_0_pcie_bram_top_7x.v",
+    "pcie_7x_v1_11_0_pcie_brams_7x.v",
+    "pcie_7x_v1_11_0_pcie_pipe_lane.v",
+    "pcie_7x_v1_11_0_pcie_pipe_misc.v",
+    "pcie_7x_v1_11_0_pcie_pipe_pipeline.v",
+    "pcie_7x_v1_11_0_pcie_top.v",
+    "pcie_7x_v1_11_0_pipe_clock.v",
+    "pcie_7x_v1_11_0_pipe_drp.v",
+    "pcie_7x_v1_11_0_pipe_eq.v",
+    "pcie_7x_v1_11_0_pipe_rate.v",
+    "pcie_7x_v1_11_0_pipe_reset.v",
+    "pcie_7x_v1_11_0_pipe_sync.v",
+    "pcie_7x_v1_11_0_pipe_user.v",
+    "pcie_7x_v1_11_0_pipe_wrapper.v",
+    "pcie_7x_v1_11_0_qpll_drp.v",
+    "pcie_7x_v1_11_0_qpll_reset.v",
+    "pcie_7x_v1_11_0_qpll_wrapper.v",
+    "pcie_7x_v1_11_0_rxeq_scan.v",
+    "IBUFDS_GTE2.v"
+
+  ],
   "constraint_files":[
     "tx1_pcie_constraints.ucf"
   ]
