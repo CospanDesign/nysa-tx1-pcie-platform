@@ -35,6 +35,9 @@ from nysa.host.nysa_platform import Platform
 from nysa.ibuilder.lib.xilinx_utils import find_xilinx_path
 from tx1_pcie import Tx1Pcie
 
+SYSFS_PCIE_DRIVER_PATH = os.path.join(os.path.sep, "sys", "bus", "pci", "drivers", "nysa_pcie")
+DEV_PATH = os.path.join(os.path.sep, "dev")
+DRIVER_NAME = "nysa_pcie"
 
 class Tx1PciePlatform(Platform):
     def __init__(self, status = None):
@@ -61,15 +64,20 @@ class Tx1PciePlatform(Platform):
             NysaError: An error occured when scanning for devices
 
         """
-        self.status.Verbose("Scanning")
         inst_dict = {}
-        devs = os.listdir("/dev")
-        #print "devs: %s" % str(devs)
-        for d in devs:
-            if "ttyUSB" in d:
-                path = os.path.join(os.path.sep, "dev", d)
-                inst_dict[os.path.split(d)[1]] = Tx1Pcie(path)
+        if not os.path.exists(SYSFS_PCIE_DRIVER_PATH):
+            return inst_dict
+
+        ids = []
+        for path, dirs, files in os.walk(DEV_PATH):
+            for f in files:
+                if f.startswith(DRIVER_NAME):
+                    ids.append(os.path.join(path, f))
+            
+
         #if self.status: self.status.Warning("Scan function not implemented yet!")
+        for i in ids:
+            inst_dict[i] = Tx1Pcie(i, self.status)
         return inst_dict
         #raise AssertionError("%s not implemented" % sys._getframe().f_code.co_name)
 
@@ -89,7 +97,7 @@ class Tx1PciePlatform(Platform):
             NysaError: An error occured when scanning for the build tools
         """
         #raise AssertionError("%s not implemented" % sys._getframe().f_code.co_name)
-        if self.status:  self.status.Warning("By default build tools is Xilinx this can be changed in tx1_pcie/nysa_platform.py")
+        #if self.status:  self.status.Warning("By default build tools is Xilinx this can be changed in artemis_pcie/nysa_platform.py")
         if find_xilinx_path() is None:
             return False
         return True

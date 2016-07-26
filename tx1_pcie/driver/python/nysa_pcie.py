@@ -21,7 +21,6 @@ import os
 import argparse
 from array import array as Array
 from collections import OrderedDict
-from nysa.common.print_utils import *
 import datetime
 
 #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
@@ -133,6 +132,13 @@ STATUS_BITS = OrderedDict([
     (SB_DONE           , "Command Done"                ),
     (SB_CMD_ERR        , "Error executing command"     )
 ])
+
+
+
+def print_32bit_hex_array(hex_array):
+    for i in range (0, len(hex_array), 4):
+        print ("[8][{0:>4}] [32][{1:>4}]: {2:02X} {3:02X} {4:02X} {5:02X}".format(i, (i / 4), hex_array[i], hex_array[i + 1], hex_array[i + 2], hex_array[i + 3]))
+
 
 class NysaPCIEConfig (object):
 
@@ -270,7 +276,9 @@ class NysaPCIE (object):
         self.write_command(CMD_PERIPHERAL_READ, data_count, 0x00)
         print "Send Peripheral Read Command"
         data = Array('B')
-        data.fromstring(os.read(self.f, data_count * 4))
+        RESP_SIZE = 4 * 4
+        data.fromstring(os.read(self.f, (data_count * 4) + RESP_SIZE))
+        print "Data Count: %d [0x%02X]" % (len(data), len(data))
         print "Data: %s" % str(data)
 
     def write_dma_data(self, data):
