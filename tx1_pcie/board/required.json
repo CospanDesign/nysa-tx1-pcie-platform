@@ -63,14 +63,6 @@
         "tx1_ddr3.ucf"
       ],
       "bind":{
-        "ref_clk_out":{
-          "direction":"output",
-          "loc":"ddr3_ref_clk_out"
-        },
-        "ref_clk_in":{
-          "direction":"input",
-          "loc":"ddr3_ref_clk_in"
-        },
         "ddr3_dq[7:0]":{
           "direction":"inout",
           "loc":"ddr3_dq[7:0]"
@@ -253,6 +245,7 @@
     }
   },
   "dependencies":[
+    "ddr3_pll.v",
     "tx1_ddr3.v",
     "mig_7series_v1_9_clk_ibuf.v",
     "mig_7series_v1_9_infrastructure.v",

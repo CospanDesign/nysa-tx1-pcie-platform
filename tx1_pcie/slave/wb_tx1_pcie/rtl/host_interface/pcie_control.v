@@ -220,7 +220,6 @@ reg                         r_delay_stb;
 reg   [7:0]                 r_tlp_command;
 reg   [13:0]                r_tlp_flags;
 reg   [31:0]                r_tlp_address;
-reg   [15:0]                r_tlp_requester_id;
 reg   [7:0]                 r_tlp_tag;
 
 reg                         r_send_cfg_en;
@@ -229,7 +228,6 @@ reg                         r_send_cfg_fin;
 
 //Configuration State Machine
 reg   [3:0]                 cfg_state;
-wire                        r_cfg_ready;
 reg                         r_cfg_chan_en;
 
 
@@ -326,7 +324,6 @@ assign  o_egress_tlp_address                = r_cfg_chan_en ? {32'h00000001, i_s
 assign  o_egress_tlp_requester_id           = {i_pcie_bus_num, i_pcie_dev_num, i_pcie_fun_num};
 assign  o_egress_tag                        = r_tlp_tag;
 
-assign  r_cfg_ready                         = (cfg_state != IDLE);
 assign  o_cfg_sm_state                      = cfg_state;
 assign  o_ctl_state                         = state;
 
@@ -353,7 +350,6 @@ always @ (posedge clk) begin
     r_tlp_command       <=  0;
     r_tlp_flags         <=  0;
     r_tlp_address       <=  0;
-    r_tlp_requester_id  <=  0;
     r_tlp_tag           <=  0;
     r_index_valuea      <=  0;
     r_index_valueb      <=  0;

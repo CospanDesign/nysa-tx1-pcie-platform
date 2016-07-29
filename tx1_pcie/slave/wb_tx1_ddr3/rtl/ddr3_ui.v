@@ -78,7 +78,6 @@ reg  [BUF_DEPTH - 1:0] r_app_addr_count;
 reg  [BUF_DEPTH - 1:0] r_app_data_count;
 reg   [7:0] r_app_data_timer;
 reg  [BUF_DEPTH - 1:0] r_obuf_addra;
-reg         r_obuf_wea;
 reg  [15:0] r_state_clks;
 reg  [15:0] r_write_clks;
 reg  [15:0] r_read_clks;
@@ -111,7 +110,6 @@ if (rst) begin
     o_obuf_ddr3_fault  <= 0;
     r_obuf_addra       <= 0;
     o_obuf_wea         <= 0;
-    r_obuf_wea         <= 0;
     r_write_clks       <= 0;
     r_read_clks        <= 0;
     r_state_clks       <= 0;
@@ -141,7 +139,6 @@ end else begin
         r_obuf_addra     <= 0;
         o_obuf_dina      <= 0;
         o_obuf_wea       <= 0;
-        r_obuf_wea       <= 0;
         o_ibuf_bsy       <= 0;
         o_obuf_bsy       <= 0;
         r_state_clks     <= 0;
@@ -257,7 +254,6 @@ end else begin
                 r_obuf_addra     <= r_obuf_addra + 1;
                 o_obuf_addra     <= r_obuf_addra;
                 o_obuf_dina      <= i_app_rd_data;
-                r_obuf_wea       <= 1;
                 o_obuf_wea       <= 1;
                 r_app_data_count <= r_app_data_count + 1;
             end else begin

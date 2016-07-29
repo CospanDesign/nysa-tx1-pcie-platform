@@ -399,7 +399,8 @@ assign  o_debug[31]     = w_clock_locked;
 //assign  o_debug[15:0]   = m32_axis_rx_tdata[31:16];
 //assign  o_debug[19:16]  = m32_axis_rx_tkeep[3:0];
 assign  o_debug[3:0]    = o_dbg_state;
-assign  o_debug[8:4]    = egress_state;
+assign  o_debug[7:4]    = egress_state;
+assign  o_debug[8]      = 1'b0;
 
 assign  o_debug[9]      = s32_axis_tx_tvalid;
 assign  o_debug[10]     = s32_axis_tx_tready;

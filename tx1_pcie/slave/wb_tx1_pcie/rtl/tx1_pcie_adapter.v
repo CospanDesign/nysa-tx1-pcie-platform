@@ -132,7 +132,13 @@ module tx1_pcie_adapter #(
 
   //Host Interface
   output                    o_sys_rst,
-  //User Interfaces
+
+
+
+
+
+
+  //User Interfaces (Host Interface Clock Domain)
   output                    o_per_fifo_sel,
   output                    o_mem_fifo_sel,
   output                    o_dma_fifo_sel,
@@ -149,6 +155,10 @@ module tx1_pcie_adapter #(
 
   input                     i_usr_interrupt_stb,
   input       [31:0]        i_usr_interrupt_value,
+
+
+
+
 
   //Ingress FIFO
   input                     i_data_clk,
@@ -199,11 +209,24 @@ wire                                        user_reset;
 wire                                        user_lnk_up;
 
 
+wire                                        w_per_fifo_sel;
+wire                                        w_mem_fifo_sel;
+wire                                        w_dma_fifo_sel;
 
+wire                                        w_write_fin;
+
+wire                                        w_data_fifo_flg;
+wire                                        w_data_read_flg;
+wire                                        w_data_write_flg;
+
+wire                                        w_usr_interrupt_stb;
+wire        [31:0]                          w_usr_interrupt_value;
+
+wire                                        w_ingress_cc_inactive;
+wire                                        w_egress_cc_inactive;
 
 // Tx
 wire                                        tx_cfg_gnt;
-
 
 /*
 wire                                        s64_axis_tx_tready;
@@ -1098,23 +1121,23 @@ pcie_control controller (
   .o_ctr_sel                  (w_ctr_fifo_sel             ),
 
   //User Interface
-  .o_per_sel                  (o_per_fifo_sel             ),
-  .o_mem_sel                  (o_mem_fifo_sel             ),
-  .o_dma_sel                  (o_dma_fifo_sel             ),
+  .o_per_sel                  (w_per_fifo_sel             ),
+  .o_mem_sel                  (w_mem_fifo_sel             ),
+  .o_dma_sel                  (w_dma_fifo_sel             ),
   .i_write_fin                (w_wr_fin                   ),
   .i_read_fin                 (w_rd_fin & w_egress_inactive     ),
 
   .o_data_fifo_sel            (w_dat_fifo_sel             ),
 
-  .i_interrupt_stb            (i_usr_interrupt_stb        ),
-  .i_interrupt_value          (i_usr_interrupt_value      ),
+  .i_interrupt_stb            (w_usr_interrupt_stb        ),
+  .i_interrupt_value          (w_usr_interrupt_value      ),
 
-  .o_data_size                (o_data_size                ),
-  .o_data_count               (o_data_count               ),
-  .o_data_address             (o_data_address             ),
-  .o_data_fifo_flg            (o_data_fifo_flg            ),
-  .o_data_read_flg            (o_data_read_flg            ),
-  .o_data_write_flg           (o_data_write_flg           ),
+  .o_data_size                (w_data_size                ),
+  .o_data_count               (w_data_count               ),
+  .o_data_address             (w_data_address             ),
+  .o_data_fifo_flg            (w_data_fifo_flg            ),
+  .o_data_read_flg            (w_data_read_flg            ),
+  .o_data_write_flg           (w_data_write_flg           ),
 
 
   //Peripheral/Memory/DMA Egress FIFO Interface
@@ -1167,12 +1190,19 @@ pcie_control controller (
   .o_dword_req_cnt            (w_pcie_ctr_dword_req_cnt   ),
 
   //Configuration Reader Interface
-  .o_cfg_read_exec            (o_cfg_read_exec            ),
-  .o_cfg_sm_state             (o_cfg_sm_state             ),
+//  .o_cfg_read_exec            (o_cfg_read_exec            ),
+//  .o_cfg_sm_state             (o_cfg_sm_state             ),
   .o_ctl_state                (o_controller_state         )
   //.o_ctl_state                (o_dbg_state                )
 );
 assign  o_dbg_state = o_controller_state;
+
+/*
+assign  o_dbg_state[0] = cfg_err_cor | cfg_err_ur | cfg_err_ecrc | cfg_err_cpl_timeout | cfg_err_cpl_abort | cfg_err_cpl_unexpect | cfg_err_posted | cfg_err_locked | cfg_err_tlp_cpl_header;
+assign  o_dbg_state[1] = cfg_err_posted;
+assign  o_dbg_state[2] = cfg_err_poisoned;
+assign  o_dbg_state[3] = cfg_err_norecovery;
+*/
 
 
 //XXX: Need to think about resets
@@ -1205,7 +1235,7 @@ ppfifo #(
   .read_count                 (o_ingress_fifo_size        ),
   .read_strobe                (i_ingress_fifo_stb         ),
   .read_data                  (o_ingress_fifo_data        ),
-  .inactive                   (o_ingress_fifo_idle        )
+  .inactive                   (w_ingress_cc_inactive      )
 );
 
 //EGRESS FIFOs
@@ -1229,7 +1259,7 @@ ppfifo #(
   .read_count                 (w_e_data_fifo_size         ),
   .read_strobe                (w_e_data_fifo_stb          ),
   .read_data                  (w_e_data_fifo_data         ),
-  .inactive                   (w_egress_inactive          )
+  .inactive                   (w_egress_cc_inactive       )
 );
 
 pcie_ingress ingress (
@@ -1274,7 +1304,7 @@ pcie_ingress ingress (
   .o_cmd_flg_sel_dma_stb      (w_cmd_flg_sel_dma_stb      ),
 
   //Input Configuration Registers from either PCIE_A1 or controller
-  .i_bar_hit                  (o_bar_hit                  ),
+  .i_bar_hit                  (w_bar_hit                  ),
   //Local Address of where BAR0 is located (Used to do address translation)
   .i_control_addr_base        (w_control_addr_base        ),
   .o_enable_config_read       (w_enable_config_read       ),
@@ -1339,6 +1369,89 @@ pcie_egress egress (
   .dbg_ready_drop             (dbg_ready_drop             )
 );
 
+
+//Peripheral/Memory/DMA Select
+cross_clock_enable cce_pfs (
+  .rst                        (o_sys_rst || rst           ),
+  .in_en                      (w_per_fifo_sel             ),
+
+  .out_clk                    (i_data_clk                 ),
+  .out_en                     (o_per_fifo_sel             )
+);
+
+cross_clock_enable cce_mfs (
+  .rst                        (o_sys_rst || rst           ),
+  .in_en                      (w_mem_fifo_sel             ),
+
+  .out_clk                    (i_data_clk                 ),
+  .out_en                     (o_mem_fifo_sel             )
+);
+
+cross_clock_enable cce_dfs (
+  .rst                        (o_sys_rst || rst           ),
+  .in_en                      (w_dma_fifo_sel             ),
+
+  .out_clk                    (i_data_clk                 ),
+  .out_en                     (o_dma_fifo_sel             )
+);
+
+
+//Read/Write/No-increment Flag
+cross_clock_enable cce_dff (
+  .rst                        (o_sys_rst || rst           ),
+  .in_en                      (w_data_fifo_flg            ),
+
+  .out_clk                    (i_data_clk                 ),
+  .out_en                     (o_data_fifo_flg            )
+);
+cross_clock_enable cce_drf (
+  .rst                        (o_sys_rst || rst           ),
+  .in_en                      (w_data_read_flg            ),
+
+  .out_clk                    (i_data_clk                 ),
+  .out_en                     (o_data_read_flg            )
+);
+cross_clock_enable cce_dwf (
+  .rst                        (o_sys_rst || rst           ),
+  .in_en                      (w_data_write_flg           ),
+
+  .out_clk                    (i_data_clk                 ),
+  .out_en                     (o_data_write_flg           )
+);
+
+assign  o_data_size       = w_data_size;
+assign  o_data_count      = w_data_count;
+assign  o_data_address    = w_data_address;
+
+//Incomming Interrupt Strobe
+cross_clock_strobe cce_int_stb (
+  .rst                        (o_sys_rst || rst           ),
+  .in_clk                     (i_data_clk                 ),
+  .in_stb                     (i_usr_interrupt_stb        ),
+
+  .out_clk                    (user_clk                   ),
+  .out_stb                    (w_usr_interrupt_stb        )
+);
+
+assign  w_usr_interrupt_value = i_usr_interrupt_value;
+
+cross_clock_enable cce_ing_inactive (
+  .rst                        (o_sys_rst || rst           ),
+  .in_en                      (w_ingress_cc_inactive      ),
+
+  .out_clk                    (i_data_clk                 ),
+  .out_en                     (o_ingress_fifo_idle        )
+);
+
+cross_clock_enable cce_egr_inactive (
+  .rst                        (o_sys_rst || rst           ),
+  .in_en                      (w_egress_cc_inactive       ),
+
+  .out_clk                    (user_clk                   ),
+  .out_en                     (w_egress_inactive          )
+);
+
+
 /****************************************************************************
  * FIFO Multiplexer
  ****************************************************************************/
@@ -1384,7 +1497,7 @@ assign s_axis_tx_tuser              = {s_axis_tx_discont,
                                         s_axis_tx_s6_not_used};
 
 //Use this BAR Hist because it is buffered with the AXI transaction
-assign o_bar_hit                    = m32_axis_rx_tuser[8:2];
+assign w_bar_hit                    = m32_axis_rx_tuser[8:2];
 assign dbg_rerrfwd                  = m32_axis_rx_tuser[1];
 
 

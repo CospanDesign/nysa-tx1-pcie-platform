@@ -148,7 +148,6 @@ localparam  CMD_UNKNOWN             = 8'h16;
 
 //registes/wires
 reg   [3:0]                 state;
-reg   [23:0]                r_data_count;
 reg   [3:0]                 r_hdr_index;
 reg   [31:0]                r_hdr [0:3];
 
@@ -284,7 +283,6 @@ always @ (posedge clk) begin
     o_cmd_data_address        <=  0;
 
     //Counts
-    r_data_count              <=  0;
     r_hdr_index               <=  0;
 
     //Buffer Interface
@@ -315,7 +313,6 @@ always @ (posedge clk) begin
       IDLE: begin
         r_buf_cnt                     <=  0;
         o_buf_addr                    <=  0;
-        r_data_count                  <=  0;
         r_hdr_index                   <=  0;
         o_enable_config_read          <=  0;
 

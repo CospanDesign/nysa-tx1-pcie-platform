@@ -184,6 +184,7 @@ class Tx1Pcie(Nysa):
         if address >= ARTEMIS_MEMORY_OFFSET:
             address -= ARTEMIS_MEMORY_OFFSET
             command |= 0x10000
+            print "Read Length: %d" % length
         if disable_auto_inc:
             command |= 0x20000
 

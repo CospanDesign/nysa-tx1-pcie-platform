@@ -111,7 +111,7 @@ module tx1_ddr3 #
    parameter MC_ERR_ADDR_WIDTH     = 31,
    parameter MEM_ADDR_ORDER
      = "BANK_ROW_COLUMN",
-      
+
    parameter nBANK_MACHS           = 4,
    parameter RANKS                 = 1,
                                      // # of Ranks.
@@ -209,14 +209,14 @@ module tx1_ddr3 #
                                      //   = "OFF" - Components, SODIMMs, UDIMMs.
    parameter CA_MIRROR             = "OFF",
                                      // C/A mirror opt for DDR3 dual rank
-   
+
    //***************************************************************************
    // The following parameters are multiplier and divisor factors for PLLE2.
    // Based on the selected design frequency these parameters vary.
    //***************************************************************************
-   parameter CLKIN_PERIOD          = 10000,
+   parameter CLKIN_PERIOD          = 5000,
                                      // Input Clock Period
-   parameter CLKFBOUT_MULT         = 8,
+   parameter CLKFBOUT_MULT         = 4,
                                      // write PLL VCO multiplier
    parameter DIVCLK_DIVIDE         = 1,
                                      // write PLL VCO divisor
@@ -399,14 +399,14 @@ module tx1_ddr3 #
    parameter SYSCLK_TYPE           = "NO_BUFFER",
                                      // System clock type DIFFERENTIAL, SINGLE_ENDED,
                                      // NO_BUFFER
-   parameter REFCLK_TYPE           = "SINGLE_ENDED",
+   parameter REFCLK_TYPE           = "USE_SYSTEM_CLOCK",
                                      // Reference clock type DIFFERENTIAL, SINGLE_ENDED,
                                      // NO_BUFFER, USE_SYSTEM_CLOCK
    parameter SYS_RST_PORT          = "FALSE",
                                      // "TRUE" - if pin is selected for sys_rst
                                      //          and IBUF will be instantiated.
                                      // "FALSE" - if pin is not selected for sys_rst
-      
+
    parameter CMD_PIPE_PLUS1        = "ON",
                                      // add pipeline stage between MC and PHY
    parameter DRAM_TYPE             = "DDR3",
@@ -434,7 +434,7 @@ module tx1_ddr3 #
                                      // Differential Termination for System
                                      // clock input pins
 
-   
+
 
    //***************************************************************************
    // Debug parameters
@@ -448,7 +448,7 @@ module tx1_ddr3 #
    //***************************************************************************
    parameter TEMP_MON_CONTROL                          = "INTERNAL",
                                      // # = "INTERNAL", "EXTERNAL"
-      
+
    parameter RST_ACT_LOW           = 0
                                      // =1 for active low reset,
                                      // =0 for active high.
@@ -477,8 +477,7 @@ module tx1_ddr3 #
    // Inputs
    // Single-ended system clock
    input                                        sys_clk_i,
-   // Single-ended iodelayctrl clk (reference clock)
-   input                                        clk_ref_i,
+
    // user interface signals
    input [ADDR_WIDTH-1:0]                       app_addr,
    input [2:0]                                  app_cmd,
@@ -500,15 +499,15 @@ module tx1_ddr3 #
    output                                       app_zq_ack,
    output                                       ui_clk,
    output                                       ui_clk_sync_rst,
-   
-      
-   
+
+
+
    output                                       init_calib_complete,
-   
-      
+
+   output                                       pll_locked,
 
    // System reset - Default polarity of sys_rst pin is Active Low.
-   // System reset polarity will change based on the option 
+   // System reset polarity will change based on the option
    // selected in GUI.
    input                                        sys_rst
    );
@@ -531,11 +530,11 @@ module tx1_ddr3 #
                                                  // Enable or disable the temp monitor module
   localparam tTEMPSAMPLE           = 10000000;   // sample every 10 us
   localparam XADC_CLK_PERIOD       = 5000;       // Use 200 MHz IODELAYCTRL clock
-      
-      
+
+
 
   // Wire declarations
-      
+
   wire [BM_CNT_WIDTH-1:0]           bank_mach_next;
   wire                              clk;
   wire                              clk_ref;
@@ -548,19 +547,20 @@ module tx1_ddr3 #
   wire                              sync_pulse;
   wire                              ref_dll_lock;
   wire                              rst_phaser_ref;
-  wire                              pll_locked;
+//  wire                              pll_locked;
 
   wire                              rst;
-  
+
   wire [2*nCK_PER_CLK-1:0]            app_ecc_multiple_err;
   wire                                ddr3_parity;
-      
+
 
   wire                              sys_clk_p;
   wire                              sys_clk_n;
   wire                              mmcm_clk;
   wire                              clk_ref_p;
   wire                              clk_ref_n;
+  wire                              clk_ref_i;
   wire [11:0]                       device_temp;
   wire [11:0]                       device_temp_i;
 
@@ -632,7 +632,7 @@ module tx1_ddr3 #
   wire [5:0]                        dbg_data_offset;
   wire [5:0]                        dbg_data_offset_1;
   wire [5:0]                        dbg_data_offset_2;
-      
+
 
 //***************************************************************************
 
@@ -640,12 +640,11 @@ module tx1_ddr3 #
 
   assign ui_clk = clk;
   assign ui_clk_sync_rst = rst;
-  
+
   assign sys_clk_p = 1'b0;
   assign sys_clk_n = 1'b0;
-  assign clk_ref_p = 1'b0;
-  assign clk_ref_n = 1'b0;
-      
+  assign clk_ref_i = 1'b0;
+
 
   generate
     if (REFCLK_TYPE == "USE_SYSTEM_CLOCK")
@@ -714,7 +713,7 @@ module tx1_ddr3 #
 
     end
   endgenerate
-         
+
   mig_7series_v1_9_infrastructure #
     (
      .TCQ                (TCQ),
@@ -753,7 +752,7 @@ module tx1_ddr3 #
        .iodelay_ctrl_rdy (iodelay_ctrl_rdy),
        .ref_dll_lock     (ref_dll_lock)
        );
-      
+
 
   mig_7series_v1_9_memc_ui_top_std #
     (
@@ -1007,11 +1006,11 @@ module tx1_ddr3 #
        .dbg_oclkdelay_rd_data            (dbg_oclkdelay_rd_data),
        .dbg_oclkdelay_calib_start        (dbg_oclkdelay_calib_start),
        .dbg_oclkdelay_calib_done         (dbg_oclkdelay_calib_done),
-       .dbg_dqs_found_cal                (dbg_dqs_found_cal),  
+       .dbg_dqs_found_cal                (dbg_dqs_found_cal),
        .init_calib_complete              (init_calib_complete)
        );
 
-      
+
 
 
 
@@ -1034,6 +1033,6 @@ module tx1_ddr3 #
    assign dbg_po_f_stg23_sel   = 'b0;
    assign dbg_sel_po_incdec    = 'b0;
 
-      
+
 
 endmodule

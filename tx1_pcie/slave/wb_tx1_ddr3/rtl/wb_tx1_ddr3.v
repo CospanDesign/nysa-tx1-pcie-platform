@@ -90,8 +90,8 @@ module wb_tx1_ddr3 #(
   output              ddr3_dm,
   output              ddr3_odt,
 
-  output              ref_clk_out,
-  input               ref_clk_in,
+//  output              ref_clk_out,
+//  input               ref_clk_in,
 
   //Wishbone Bus Signals
   input               i_wbs_we,
@@ -130,6 +130,7 @@ module wb_tx1_ddr3 #(
   output      [23:0]  o_odma0_size,
 
 
+  output      [31:0]  o_debug,
   //This interrupt can be controlled from this module or a submodule
   output  reg         o_wbs_int
   //output              o_wbs_int
@@ -139,8 +140,8 @@ module wb_tx1_ddr3 #(
 
 
 reg     [31:0]              r_address;
-wire                        sys_clk_i;
-wire                        clk_ref_i;
+(* keep = "true" *) wire    sys_clk_i;
+//wire                        clk_ref_i;
 
 wire                        app_zq_req;  //Set to 0
 wire                        app_zq_ack;
@@ -172,37 +173,13 @@ wire                        init_calib_complete;
 
 //Memory Controller Interface
 reg                         write_en; //set high to initiate a write transaction
-reg                         read_en;  //set high to start populating the read FIFO; set low to end immediately
 
 reg     [23:0]              write_count;
 reg     [23:0]              read_count;
 
 //Local Registers/Wires
-wire                        cmd_en;       //Command is strobed into controller
-wire    [2:0]               cmd_instr;    //Instruction
-wire    [27:0]              cmd_addr;     //Word Address
-wire                        cmd_rdy;      //Command FIFO full
-
-wire    [5:0]               cmd_bl;       //Burst Length
-
-wire                        wr_en;        //Write Data strobe
-wire    [3:0]               wr_mask;      //Write Strobe Mask (Not used; always set to 0)
-wire    [31:0]              wr_data;      //Data to write into memory
-wire                        wr_full;      //Write FIFO is full
-wire    [6:0]               wr_count;     //Number of words in the write FIFO; this is slow to respond
-
-wire                        rd_en;        //Enable a read from memory FIFO
-wire    [31:0]              rd_data;      //data read from FIFO
-wire                        rd_full;      //FIFO is full
-wire                        rd_empty;     //FIFO is empty
-wire    [6:0]               rd_count;     //Number of elements inside the FIFO (This is slow to respond; so don't use it as a clock to clock estimate of how much data is available
-wire                        rd_overflow;  //the FIFO is overflowed and data is lost
-wire                        rd_error;     //FIFO pointers are out of sync and a reset is required
-
-
 //Submodules
-wire                        clk_400mhz;
-wire                        clk_locked;
+//wire                        clk_locked;
 
 //PPFIFO Interface
 reg                         if_write_strobe;
@@ -242,10 +219,12 @@ wire                            w_egress_en;
 
 reg                             r_prev_cyc;
 wire                            w_read_address_en;
+wire                            pll_locked;
 
-
-
-wire                            w_app_phy_init_done;
+wire      [1:0]                 w_ing_enable;
+wire      [1:0]                 w_egr_enable;
+wire      [1:0]                 w_inout_enable;
+wire      [3:0]                 w_dac_state;
 
 //Comment for normal operation, uncomment for simulation
 //`define SIM
@@ -259,7 +238,7 @@ ddr3_ui_sim sim (
   .ui_clk              (ui_clk                ),
   .rst                 (rst                   ),
 
-  .o_app_phy_init_done (w_app_phy_init_done   ),
+  .o_app_phy_init_done (init_calib_complete   ),
 
   .i_app_en            (app_en                ),
   .i_app_cmd           (app_cmd               ),
@@ -279,64 +258,69 @@ ddr3_ui_sim sim (
 `else
 */
 wire                        ui_clk;
-clk_wiz_v3_6_0 pll(
+wire                        ref_clk_in;
+ddr3_pll pll(
   .CLK_IN1             (clk                  ),
-  //.CLK_OUT1            (clk_400mhz           ),
-  .CLK_OUT1            (ref_clk_out          ),
+  .CLK_OUT1            (ref_clk_in           ),
+
+//  .RESET               (rst                  ),
   .LOCKED              (clk_locked           )
 );
 
 tx1_ddr3 ddr3_if(
-  .ddr3_dq             (ddr3_dq             ),
-  .ddr3_dqs_n          (ddr3_dqs_n          ),
-  .ddr3_dqs_p          (ddr3_dqs_p          ),
+  .ddr3_dq             (ddr3_dq              ),
+  .ddr3_dqs_n          (ddr3_dqs_n           ),
+  .ddr3_dqs_p          (ddr3_dqs_p           ),
 
 
-  .ddr3_addr           (ddr3_addr           ),
-  .ddr3_ba             (ddr3_ba             ),
-  .ddr3_ras_n          (ddr3_ras_n          ),
-  .ddr3_cas_n          (ddr3_cas_n          ),
-  .ddr3_we_n           (ddr3_we_n           ),
-  .ddr3_reset_n        (ddr3_reset_n        ),
-  .ddr3_ck_p           (ddr3_ck_p           ),
-  .ddr3_ck_n           (ddr3_ck_n           ),
-  .ddr3_cke            (ddr3_cke            ),
-  .ddr3_cs_n           (ddr3_cs_n           ),
-  .ddr3_dm             (ddr3_dm             ),
-  .ddr3_odt            (ddr3_odt            ),
+  .ddr3_addr           (ddr3_addr            ),
+  .ddr3_ba             (ddr3_ba              ),
+  .ddr3_ras_n          (ddr3_ras_n           ),
+  .ddr3_cas_n          (ddr3_cas_n           ),
+  .ddr3_we_n           (ddr3_we_n            ),
+  .ddr3_reset_n        (ddr3_reset_n         ),
+  .ddr3_ck_p           (ddr3_ck_p            ),
+  .ddr3_ck_n           (ddr3_ck_n            ),
+  .ddr3_cke            (ddr3_cke             ),
+  .ddr3_cs_n           (ddr3_cs_n            ),
+  .ddr3_dm             (ddr3_dm              ),
+  .ddr3_odt            (ddr3_odt             ),
 
-  .sys_clk_i           (sys_clk_i           ),
-  .clk_ref_i           (clk_ref_i           ),
+//  .sys_clk_i           (sys_clk_i            ),
+  .sys_clk_i           (ref_clk_in           ),
+//  .clk_ref_i           (ref_clk_in           ),
 
-  .app_zq_req          (app_zq_req          ),
-  .app_zq_ack          (app_zq_ack          ),
+  .app_zq_req          (app_zq_req           ),
+  .app_zq_ack          (app_zq_ack           ),
 
 
-  .app_addr            (app_addr            ),
-  .app_cmd             (app_cmd             ),
-  .app_en              (app_en              ),
-  .app_rdy             (app_rdy             ),
+  .app_addr            (app_addr             ),
+  .app_cmd             (app_cmd              ),
+  .app_en              (app_en               ),
+  .app_rdy             (app_rdy              ),
 
-  .app_wdf_data        (app_wdf_data        ),
-  .app_wdf_end         (app_wdf_end         ),
-  .app_wdf_mask        (app_wdf_mask        ),
-  .app_wdf_wren        (app_wdf_wren        ),
-  .app_wdf_rdy         (app_wdf_rdy         ),
+  .app_wdf_data        (app_wdf_data         ),
+  .app_wdf_end         (app_wdf_end          ),
+  .app_wdf_mask        (app_wdf_mask         ),
+  .app_wdf_wren        (app_wdf_wren         ),
+  .app_wdf_rdy         (app_wdf_rdy          ),
 
-  .app_rd_data         (app_rd_data         ),
-  .app_rd_data_end     (app_rd_data_end     ),
-  .app_rd_data_valid   (app_rd_data_valid   ),
+  .app_rd_data         (app_rd_data          ),
+  .app_rd_data_end     (app_rd_data_end      ),
+  .app_rd_data_valid   (app_rd_data_valid    ),
 
-  .app_sr_req          (app_sr_req          ),
-  .app_sr_active       (app_sr_active       ),
-  .app_ref_req         (app_ref_req         ),
-  .app_ref_ack         (app_ref_ack         ),
+  .app_sr_req          (app_sr_req           ),
+  .app_sr_active       (app_sr_active        ),
+  .app_ref_req         (app_ref_req          ),
+  .app_ref_ack         (app_ref_ack          ),
 
-  .ui_clk              (ui_clk              ),
-  .ui_clk_sync_rst     (ui_clk_sync_rst     ),
+  .ui_clk              (ui_clk               ),
+  .ui_clk_sync_rst     (ui_clk_sync_rst      ),
 
-  .init_calib_complete (w_app_phy_init_done ),
-  .sys_rst             (rst                 )
+  .pll_locked          (pll_locked           ),
+  .init_calib_complete (init_calib_complete  ),
+  .sys_rst             (!clk_locked          )
+  //.sys_rst             (rst                  )
 );
 
 //`endif
@@ -348,7 +332,7 @@ ddr3_ui #(
   .ui_clk              (ui_clk                ),
   .rst                 (rst || ui_clk_sync_rst),
 
-  .i_app_phy_init_done (w_app_phy_init_done   ),
+  .i_app_phy_init_done (init_calib_complete   ),
 
   .o_app_en            (app_en                ),
   .o_app_cmd           (app_cmd               ),
@@ -465,7 +449,13 @@ ddr3_arbiter_controller #(
   .i_obuf_addra       (w_obuf_addra        ),
   .i_obuf_dina        (w_obuf_dina         ),
   .i_obuf_wea         (w_obuf_wea          ),
-  .o_obuf_ddr3_addra  (w_obuf_ddr3_addra   )
+  .o_obuf_ddr3_addra  (w_obuf_ddr3_addra   ),
+
+
+  .o_ing_enable       (w_ing_enable        ),
+  .o_egr_enable       (w_egr_enable        ),
+  .o_inout_enable     (w_inout_enable      ),
+  .o_state            (w_dac_state         )
 );
 
 
@@ -475,14 +465,51 @@ assign  w_egress_en       = (i_wbs_cyc & !i_wbs_we);
 assign  w_read_address_en  = i_wbs_cyc && !r_prev_cyc; //Only read address on cycle edge
 
 //Asynchronous Logic
-assign  sys_clk_i         = clk;
-//assign  sys_clk_i         = 0;
-//assign  clk_ref_i         = clk_400mhz;
-assign  clk_ref_i         = ref_clk_in;
-
 assign  app_zq_req        = 0;  //Set to 0
 assign  app_sr_req        = 0; //Reserved, set to zero
 assign  app_ref_req       = 0; //Core Manages Refresh Requests
+assign  app_wdf_mask      = 4'h0;
+
+
+
+
+assign  o_debug[3:0]      = w_dac_state;
+
+assign  o_debug[5:4]      = if_write_ready;
+assign  o_debug[7:6]      = if_write_activate;
+assign  o_debug[8]        = if_write_strobe;
+assign  o_debug[9]        = write_en;
+//assign  o_debug[10]       = clk_locked;
+assign  o_debug[10]       = pll_locked;
+//assign  o_debug[10]       = 1'b0;
+assign  o_debug[11]       = ui_clk_sync_rst;
+assign  o_debug[12]       = of_read_ready;
+assign  o_debug[13]       = of_read_activate;
+assign  o_debug[14]       = of_read_strobe;
+assign  o_debug[15]       = init_calib_complete;
+assign  o_debug[16]       = w_ingress_en;
+assign  o_debug[17]       = w_egress_en;
+assign  o_debug[18]       = w_ibuf_go;
+assign  o_debug[19]       = w_ibuf_bsy;
+assign  o_debug[20]       = w_obuf_go;
+assign  o_debug[21]       = w_obuf_bsy;
+assign  o_debug[22]       = app_en;
+
+assign  o_debug[25:24]    = w_ing_enable;
+assign  o_debug[27:26]    = w_egr_enable;
+assign  o_debug[29:28]    = w_inout_enable;
+
+assign  o_debug[31:30]    = app_cmd;
+/*
+assign  o_debug[24:23]    = app_cmd;
+assign  o_debug[25]       = app_rdy;
+assign  o_debug[26]       = app_wdf_wren;
+assign  o_debug[27]       = app_wdf_rdy;
+assign  o_debug[28]       = app_wdf_end;
+assign  o_debug[29]       = app_rd_data_valid;
+assign  o_debug[30]       = app_rd_data_end;
+assign  o_debug[31]       = 1'b0;
+*/
 
 //Synchronous Logic
 always @ (posedge clk) begin
@@ -495,7 +522,6 @@ always @ (posedge clk) begin
     o_wbs_int                <= 0;
 
     write_en                 <= 0;
-    read_en                  <= 0;
 
     if_write_strobe          <= 0;
     if_write_activate        <= 0;
@@ -542,13 +568,9 @@ always @ (posedge clk) begin
       if (i_wbs_we) begin
         write_en              <=  1;
       end
-      else begin
-        read_en               <=  1;
-      end
     end
     else begin
       write_en                <=  0;
-      read_en                 <=  0;
       //A transaction has ended
       //Close any FIFO that is open
       if_write_activate       <=  0;

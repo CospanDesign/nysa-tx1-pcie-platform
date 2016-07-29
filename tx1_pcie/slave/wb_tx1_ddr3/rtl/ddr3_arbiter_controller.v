@@ -101,7 +101,7 @@ module ddr3_arbiter_controller #(
   output      [23:0]                  o_odma1_size,
 
   //BRAM Interface
-  output reg                          o_ibuf_go,
+  output                              o_ibuf_go,
   input                               i_ibuf_bsy,
   input                               i_ibuf_ddr3_fault,
   output reg  [BUF_DEPTH - 1:0]       o_ibuf_count,
@@ -110,7 +110,7 @@ module ddr3_arbiter_controller #(
   output      [31:0]                  o_ibuf_doutb,
   output reg  [MEM_ADDR_DEPTH - 1:0]  o_ibuf_ddr3_addrb,
 
-  output reg                          o_obuf_go,
+  output                              o_obuf_go,
   input                               i_obuf_bsy,
   input                               i_obuf_ddr3_fault,
   output reg  [BUF_DEPTH - 1:0]       o_obuf_count,
@@ -118,9 +118,12 @@ module ddr3_arbiter_controller #(
   input       [BUF_DEPTH - 1:0]       i_obuf_addra,
   input       [31:0]                  i_obuf_dina,
   input                               i_obuf_wea,
-  output reg  [MEM_ADDR_DEPTH - 1:0]  o_obuf_ddr3_addra
+  output reg  [MEM_ADDR_DEPTH - 1:0]  o_obuf_ddr3_addra,
 
-
+  output  [1:0]                       o_ing_enable,
+  output  [1:0]                       o_egr_enable,
+  output  [1:0]                       o_inout_enable,
+  output  [3:0]                       o_state
 );
 //local parameters
 localparam  MAX_COUNT             = 2 ** BUF_DEPTH;
@@ -238,11 +241,51 @@ wire    [31:0]                  w_egr_bram_fifo_data;
 wire                            w_egress_inactive;
 
 //submodules
+reg                             r_ibuf_go;
+reg                             r_obuf_go;
+wire                            w_ibuf_bsy;
+wire                            w_obuf_bsy;
+
+//Incomming Interrupt Strobe
+cross_clock_strobe cc_ibuf_stb (
+  .rst                        (rst                        ),
+  .in_clk                     (clk                        ),
+  .in_stb                     (r_ibuf_go                  ),
+
+  .out_clk                    (ui_clk                     ),
+  .out_stb                    (o_ibuf_go                  )
+);
+cross_clock_strobe cc_obuf_stb (
+  .rst                        (rst                        ),
+  .in_clk                     (clk                        ),
+  .in_stb                     (r_obuf_go                  ),
+
+  .out_clk                    (ui_clk                     ),
+  .out_stb                    (o_obuf_go                  )
+);
+
+cross_clock_enable cc_ibuf_en (
+  .rst                        (rst                        ),
+  .in_en                      (i_ibuf_bsy                 ),
+
+  .out_clk                    (clk                        ),
+  .out_en                     (w_ibuf_bsy                 )
+);
+
+cross_clock_enable cc_obuf_en (
+  .rst                        (rst                        ),
+  .in_en                      (i_obuf_bsy                 ),
+
+  .out_clk                    (clk                        ),
+  .out_en                     (w_obuf_bsy                 )
+);
+
+
 ppfifo #(
   .DATA_WIDTH                 (32                         ),
   .ADDRESS_WIDTH              (BUF_DEPTH                  )
 ) lcl_ingress_fifo (
-  //.reset                      (rst || ui_clk_sync_rst     ),
+  //.reset                      (rst || ui_rst            ),
   .reset                      (rst                        ),
   //Write Side
   .write_clock                (clk                        ),
@@ -267,7 +310,7 @@ ppfifo #(
   .DATA_WIDTH                 (32                         ),
   .ADDRESS_WIDTH              (BUF_DEPTH                  )
 ) lcl_egress_fifo (
-  //.reset                      (rst || ui_clk_sync_rst     ),
+  //.reset                      (rst || ui_rst            ),
   .reset                      (rst                        ),
   //Write Side
   //.write_clock                (ui_clk                     ),
@@ -294,7 +337,7 @@ adapter_ppfifo_dpb #(
   .MEM_DEPTH                  (BUF_DEPTH                  )
 ) ppfifo_2_bram (
   .clk                        (clk                        ),
-  .rst                        (rst || ui_clk_sync_rst     ),
+  .rst                        (rst || ui_rst              ),
 
   .i_ppfifo_2_mem_stb         (r_ppfifo_2_mem_stb         ),
   .i_mem_2_ppfifo_stb         (r_mem_2_ppfifo_stb         ),
@@ -433,13 +476,20 @@ assign o_odma1_size       = r_egr_fifo_size[1];
 assign  w_inout_enable[0] = (w_ing_enable != 0);
 assign  w_inout_enable[1] = (w_egr_enable != 0);
 
+
+assign o_ing_enable       = w_ing_enable;
+assign o_egr_enable       = w_egr_enable;
+assign o_inout_enable     = w_inout_enable;
+assign o_state            = state;
+
+
 //synchronous logic
 integer k;
 always @ (posedge clk) begin
   r_ppfifo_2_mem_stb    <=  0;
   r_mem_2_ppfifo_stb    <=  0;
-  o_ibuf_go             <=  0;
-  o_obuf_go             <=  0;
+  r_ibuf_go             <=  0;
+  r_obuf_go             <=  0;
 
   if (rst) begin
     state               <=  IDLE;
@@ -555,7 +605,7 @@ always @ (posedge clk) begin
         else if(w_ing_ppfifo_has_data) begin
           //an ingress fifo has been filled up, now start filling up the BRAM
           r_ppfifo_2_mem_stb    <= 1;
-          o_ibuf_count          <= (w_ing_bram_fifo_size >> 2);
+          o_ibuf_count          <= w_ing_bram_fifo_size;
           state                 <= IDMA_WAIT_BRAM_START;
           o_ibuf_ddr3_addrb     <= r_ram_addr;
         end
@@ -569,19 +619,19 @@ always @ (posedge clk) begin
         //Block RAM is filled up. Tell the DDR3 Controller to do it's thing
         if (!w_adapter_busy) begin
           //All the data is in the Block RAM
-          o_ibuf_go             <=  1;
+          r_ibuf_go             <=  1;
           state                 <=  IDMA_WAIT_DDR3_START;
         end
       end
       IDMA_WAIT_DDR3_START: begin
-        if (i_ibuf_bsy) begin
+        if (w_ibuf_bsy) begin
           //Wait for any cross clock delays to pass
           state                 <=  IDMA_WAIT_DDR3;
         end
       end
       IDMA_WAIT_DDR3: begin
         //DDR3 Controller is done with this transaction,
-        if (!i_ibuf_bsy) begin
+        if (!w_ibuf_bsy) begin
           //DDR3 controller is finished go back to configure
           r_ram_addr            <=  r_ram_addr + (o_ibuf_count << 2);
           state                 <=  IDMA_CONFIGURE;
@@ -600,20 +650,20 @@ always @ (posedge clk) begin
         else begin
           o_obuf_ddr3_addra       <=  r_ram_addr;
           o_obuf_count            <=  READ_COUNT;
-          o_obuf_go               <=  1;
+          r_obuf_go               <=  1;
           state                   <=  ODMA_WAIT_DDR3_START;
         end
       end
       ODMA_WAIT_DDR3_START: begin
         //Wait for any cross clock enable to finish
-        if (i_obuf_bsy) begin
+        if (w_obuf_bsy) begin
           state                   <=  ODMA_WAIT_DDR3;
         end
       end
       ODMA_WAIT_DDR3: begin
         //DDR3 has populated the block ram
         //Fill up the PPFIFO
-        if (!i_obuf_bsy && w_egr_ppfifo_is_ready) begin
+        if (!w_obuf_bsy && w_egr_ppfifo_is_ready) begin
           r_mem_2_ppfifo_stb      <=  1;
           state                   <=  ODMA_WAIT_PPFIFO_START;
         end

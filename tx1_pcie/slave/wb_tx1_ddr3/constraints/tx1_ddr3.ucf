@@ -23,11 +23,11 @@
 ## Data Mask: 1
 ##################################################################################################
 
-#NET "sys_clk_i" TNM_NET = TNM_sys_clk;
-#TIMESPEC "TS_sys_clk" = PERIOD "TNM_sys_clk" 10 ns;
+#NET "ddr3_mem/sys_clk_i" TNM_NET = "TNM_ddr3_sys_clk";
+#TIMESPEC "TS_ddr3_sys_clk" = PERIOD "TNM_ddr3_sys_clk" 2500 ps;
 
-NET "ddr3_ref_clk_in" TNM_NET = TNM_clk_ref;
-TIMESPEC "TS_clk_ref" = PERIOD "TNM_clk_ref" 5 ns ;
+#NET "ddr3_ref_clk_in" TNM_NET = TNM_clk_ref;
+#TIMESPEC "TS_clk_ref" = PERIOD "TNM_clk_ref" 5 ns ;
 
 ############## NET - IOSTANDARD ##################
 
@@ -44,7 +44,7 @@ NET   "ddr3_addr[12]"                          LOC = "R2"      |   IOSTANDARD = 
 NET   "ddr3_addr[11]"                          LOC = "P2"      |   IOSTANDARD = SSTL15               |     SLEW = FAST        ; # Pad function: IO_L7P_T1_34
 NET   "ddr3_addr[10]"                          LOC = "P1"      |   IOSTANDARD = SSTL15               |     SLEW = FAST        ; # Pad function: IO_L8P_T1_34
 NET   "ddr3_addr[9]"                           LOC = "L3"      |   IOSTANDARD = SSTL15               |     SLEW = FAST        ; # Pad function: IO_L1P_T0_34
-NET   "ddr3_addr[8]"                           LOC = "U3"      |   IOSTANDARD = SSTL15               |     SLEW = FAST        ; # Pad function: IO_L13N_T2_MRCC_34
+NET   "ddr3_addr[8]"                           LOC = "U2"      |   IOSTANDARD = SSTL15               |     SLEW = FAST        ; # Pad function: IO_L13N_T2_MRCC_34
 NET   "ddr3_addr[7]"                           LOC = "K3"      |   IOSTANDARD = SSTL15               |     SLEW = FAST        ; # Pad function: IO_L4P_T0_34
 NET   "ddr3_addr[6]"                           LOC = "U1"      |   IOSTANDARD = SSTL15               |     SLEW = FAST        ; # Pad function: IO_L10N_T1_34
 NET   "ddr3_addr[5]"                           LOC = "K2"      |   IOSTANDARD = SSTL15               |     SLEW = FAST        ; # Pad function: IO_L4N_T0_34
@@ -71,8 +71,8 @@ NET   "ddr3_ck_n"                              LOC = "M1"      |   IOSTANDARD = 
 
 
 
-NET   "ddr3_ref_clk_in"                        LOC = "Y18"     |   IOSTANDARD = LVCMOS33                                      ; # Pad function: IO_L13P_T2_MRCC_13
-NET   "ddr3_ref_clk_out"                       LOC = "V22"     |   IOSTANDARD = LVCMOS33             | SLEW = FAST;
+#NET   "ddr3_ref_clk_in"                        LOC = "Y18"     |   IOSTANDARD = LVCMOS33                                      ; # Pad function: IO_L13P_T2_MRCC_13
+#NET   "ddr3_ref_clk_out"                       LOC = "V22"     |   IOSTANDARD = LVCMOS33             | SLEW = FAST;
 
 
 INST "*/ddr_phy_4lanes_0.u_ddr_phy_4lanes/ddr_byte_lane_D.ddr_byte_lane_D/phaser_out" LOC=PHASER_OUT_PHY_X1Y7;
@@ -102,14 +102,15 @@ INST "*/ddr_phy_4lanes_0.u_ddr_phy_4lanes/phaser_ref_i" LOC=PHASER_REF_X1Y1;
 INST "*/ddr_phy_4lanes_0.u_ddr_phy_4lanes/ddr_byte_lane_A.ddr_byte_lane_A/ddr_byte_group_io/*slave_ts" LOC=OLOGIC_X1Y57;
 
 #INST "u_ddr3_infrastructure/plle2_i" LOC=PLLE2_ADV_X1Y1;
-INST "ddr3_mem/pll/mmcm_adv_inst" LOC=MMCME2_ADV_X1Y1;
+INST "ddr3_mem/ddr3_if/pll/mmcm_adv_inst" LOC=MMCME2_ADV_X1Y1;
 
 
-NET "ddr3_mem/ref_clk_in" TNM_NET = "TNM_ISERDES_CLK";
-INST "*/mc0/mc_read_idle_r" TNM = "TNM_SOURCE_IDLE";
-INST "*/input_[?].iserdes_dq_.iserdesdq" TNM = "TNM_DEST_ISERDES";
-TIMESPEC "TS_ISERDES_CLOCK" = PERIOD "TNM_ISERDES_CLK" 2500 ps;
-TIMESPEC TS_MULTICYCLEPATH = FROM "TNM_SOURCE_IDLE" TO "TNM_DEST_ISERDES" TS_ISERDES_CLOCK*6;
+
+#NET "ddr3_mem/ref_clk_in" TNM_NET = "TNM_ISERDES_CLK";
+#INST "*/mc0/mc_read_idle_r" TNM = "TNM_SOURCE_IDLE";
+#INST "*/input_[?].iserdes_dq_.iserdesdq" TNM = "TNM_DEST_ISERDES";
+#TIMESPEC "TS_ISERDES_CLOCK" = PERIOD "TNM_ISERDES_CLK" 2500 ps;
+#TIMESPEC TS_MULTICYCLEPATH = FROM "TNM_SOURCE_IDLE" TO "TNM_DEST_ISERDES" TS_ISERDES_CLOCK*6;
 
 
 INST "*/device_temp_sync_r1*" TNM="TNM_MULTICYCLEPATH_DEVICE_TEMP_SYNC";
