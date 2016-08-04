@@ -1,4 +1,4 @@
-//wb_tx1_ddr3.v
+//wb_tx1_ppfifo_ddr3.v
 /*
 Distributed under the MIT license.
 Copyright (c) 2015 Dave McCoy (dave.mccoy@cospandesign.com)
@@ -33,7 +33,7 @@ SOFTWARE.
   SDB_CORE_VERSION:00.000.001
 
   Set the Device Name: 19 UNICODE characters
-  SDB_NAME:wb_tx1_ddr3
+  SDB_NAME:wb_tx1_ppfifo_ddr3
 
   Set the class of the device (16 bits) Set as 0
   SDB_ABI_CLASS:0
@@ -42,13 +42,13 @@ SOFTWARE.
   SDB_ABI_VERSION_MAJOR:0x06
 
   Set the ABI Minor Version (8-bits)
-  SDB_ABI_VERSION_MINOR:0x03
+  SDB_ABI_VERSION_MINOR:0x04
 
   Set the Module URL (63 Unicode Characters)
   SDB_MODULE_URL:http://www.example.com
 
   Set the date of module YYYY/MM/DD
-  SDB_DATE:2016/06/21
+  SDB_DATE:2016/07/27
 
   Device is executable (True/False)
   SDB_EXECUTABLE:True
@@ -64,10 +64,12 @@ SOFTWARE.
 */
 
 
-module wb_tx1_ddr3 #(
-  parameter          BUF_DEPTH       = 10,
-  parameter          MEM_ADDR_DEPTH  = 28
+module wb_tx1_ppfifo_ddr3 #(
+  parameter          ING_BUF_DEPTH      = 6,
+  parameter          EGR_BUF_DEPTH      = 6,
+  parameter          MEM_ADDR_DEPTH     = 28
 )(
+
   input               clk,
   input               rst,
 
@@ -90,8 +92,6 @@ module wb_tx1_ddr3 #(
   output              ddr3_dm,
   output              ddr3_odt,
 
-//  output              ref_clk_out,
-//  input               ref_clk_in,
 
   //Wishbone Bus Signals
   input               i_wbs_we,
@@ -133,14 +133,12 @@ module wb_tx1_ddr3 #(
   output      [31:0]  o_debug,
   //This interrupt can be controlled from this module or a submodule
   output  reg         o_wbs_int
-  //output              o_wbs_int
 );
 
+//Local Parameters
 //Local Registers/Wires
 
-
 reg     [31:0]              r_address;
-(* keep = "true" *) wire    sys_clk_i;
 //wire                        clk_ref_i;
 
 wire                        app_zq_req;  //Set to 0
@@ -194,24 +192,6 @@ reg                         of_read_activate;
 wire    [23:0]              of_read_size;
 wire    [31:0]              of_read_data;
 
-wire                            w_ibuf_go;
-wire                            w_ibuf_bsy;
-wire                            w_ibuf_ddr3_fault;
-wire    [BUF_DEPTH - 1:0]       w_ibuf_count;
-wire    [BUF_DEPTH - 1:0]       w_ibuf_start_addrb;
-wire    [BUF_DEPTH - 1:0]       w_ibuf_addrb;
-wire    [31:0]                  w_ibuf_doutb;
-wire    [MEM_ADDR_DEPTH - 1:0]  w_ibuf_ddr3_addrb;
-
-wire                            w_obuf_go;
-wire                            w_obuf_bsy;
-wire                            w_obuf_ddr3_fault;
-wire    [BUF_DEPTH - 1:0]       w_obuf_count;
-wire    [BUF_DEPTH - 1:0]       w_obuf_start_addra;
-wire    [BUF_DEPTH - 1:0]       w_obuf_addra;
-reg     [31:0]                  r_buf_count;
-wire    [31:0]                  w_obuf_dina;
-wire                            w_obuf_wea;
 wire    [MEM_ADDR_DEPTH - 1:0]  w_obuf_ddr3_addra;
 
 wire                            w_ingress_en;
@@ -229,45 +209,17 @@ wire      [3:0]                 w_dac_state;
 //Comment for normal operation, uncomment for simulation
 //`define SIM
 
-/*
-`ifdef SIM
-reg                         ui_clk;
-always @ (*)  ui_clk = clk;
-assign      ui_clk_sync_rst = rst;
-ddr3_ui_sim sim (
-  .ui_clk              (ui_clk                ),
-  .rst                 (rst                   ),
-
-  .o_app_phy_init_done (init_calib_complete   ),
-
-  .i_app_en            (app_en                ),
-  .i_app_cmd           (app_cmd               ),
-  .i_app_addr          (app_addr              ),
-  .o_app_rdy           (app_rdy               ),
-
-  .i_app_wdf_data      (app_wdf_data          ),
-  .i_app_wdf_end       (app_wdf_end           ),
-  .o_app_wdf_rdy       (app_wdf_rdy           ),
-  .i_app_wdf_wren      (app_wdf_wren          ),
-
-  .o_app_rd_data       (app_rd_data           ),
-  .o_app_rd_data_end   (app_rd_data_end       ),
-  .o_app_rd_data_valid (app_rd_data_valid     )
-);
-
-`else
-*/
 wire                        ui_clk;
 wire                        ref_clk_in;
 ddr3_pll pll(
   .CLK_IN1             (clk                  ),
   .CLK_OUT1            (ref_clk_in           ),
 
-//  .RESET               (rst                  ),
   .LOCKED              (clk_locked           )
 );
 
-tx1_ddr3 ddr3_if(
+//tx1_ddr3 ddr3_if(
+sim_tx1_ddr3_if ddr3_if(
   .ddr3_dq             (ddr3_dq              ),
   .ddr3_dqs_n          (ddr3_dqs_n           ),
   .ddr3_dqs_p          (ddr3_dqs_p           ),
@@ -294,16 +246,16 @@ tx1_ddr3 ddr3_if(
   .app_zq_ack          (app_zq_ack           ),
 
 
-  .app_addr            (app_addr             ),
-  .app_cmd             (app_cmd              ),
   .app_en              (app_en               ),
   .app_rdy             (app_rdy              ),
+  .app_cmd             (app_cmd              ),
+  .app_addr            (app_addr             ),
 
-  .app_wdf_data        (app_wdf_data         ),
-  .app_wdf_end         (app_wdf_end          ),
-  .app_wdf_mask        (app_wdf_mask         ),
-  .app_wdf_wren        (app_wdf_wren         ),
   .app_wdf_rdy         (app_wdf_rdy          ),
+  .app_wdf_wren        (app_wdf_wren         ),
+  .app_wdf_end         (app_wdf_end          ),
+  .app_wdf_data        (app_wdf_data         ),
+  .app_wdf_mask        (app_wdf_mask         ),
 
   .app_rd_data         (app_rd_data          ),
   .app_rd_data_end     (app_rd_data_end      ),
@@ -323,55 +275,11 @@ tx1_ddr3 ddr3_if(
   //.sys_rst             (rst                  )
 );
 
-//`endif
-
-ddr3_ui #(
-  .BUF_DEPTH          (BUF_DEPTH              ),
-  .MEM_ADDR_DEPTH     (MEM_ADDR_DEPTH         )
-)ui(
-  .ui_clk              (ui_clk                ),
-  .rst                 (rst || ui_clk_sync_rst),
-
-  .i_app_phy_init_done (init_calib_complete   ),
-
-  .o_app_en            (app_en                ),
-  .o_app_cmd           (app_cmd               ),
-  .o_app_addr          (app_addr              ),
-  .i_app_rdy           (app_rdy               ),
-
-  .o_app_wdf_data      (app_wdf_data          ),
-  .o_app_wdf_end       (app_wdf_end           ),
-  .i_app_wdf_rdy       (app_wdf_rdy           ),
-  .o_app_wdf_wren      (app_wdf_wren          ),
-
-  .i_app_rd_data       (app_rd_data           ),
-  .i_app_rd_data_end   (app_rd_data_end       ),
-  .i_app_rd_data_valid (app_rd_data_valid     ),
-
-  .i_ibuf_go           (w_ibuf_go             ),
-  .o_ibuf_bsy          (w_ibuf_bsy            ),
-  .o_ibuf_ddr3_fault   (w_ibuf_ddr3_fault     ),
-  .i_ibuf_count        (w_ibuf_count          ),
-  .i_ibuf_start_addrb  (w_ibuf_start_addrb    ),
-  .o_ibuf_addrb        (w_ibuf_addrb          ),
-  .i_ibuf_doutb        (w_ibuf_doutb          ),
-  .i_ibuf_ddr3_addrb   (w_ibuf_ddr3_addrb     ),
-
-  .i_obuf_go           (w_obuf_go             ),
-  .o_obuf_bsy          (w_obuf_bsy            ),
-  .o_obuf_ddr3_fault   (w_obuf_ddr3_fault     ),
-  .i_obuf_count        (w_obuf_count          ),
-  .i_obuf_start_addra  (w_obuf_start_addra    ),
-  .o_obuf_addra        (w_obuf_addra          ),
-  .o_obuf_dina         (w_obuf_dina           ),
-  .o_obuf_wea          (w_obuf_wea            ),
-  .i_obuf_ddr3_addra   (w_obuf_ddr3_addra     )
-);
-
-
-ddr3_arbiter_controller #(
-  .BUF_DEPTH          (BUF_DEPTH          ),
-  .MEM_ADDR_DEPTH     (MEM_ADDR_DEPTH     )
+  
+ddr3_ppfifo_controller #(
+  .ING_BUF_DEPTH      (ING_BUF_DEPTH        ),
+  .EGR_BUF_DEPTH      (EGR_BUF_DEPTH        ),
+  .MEM_ADDR_DEPTH     (MEM_ADDR_DEPTH       )
 )controller(
   .clk                (clk                 ),
   .rst                (rst                 ),
@@ -431,31 +339,27 @@ ddr3_arbiter_controller #(
   .i_odma1_activate   (of_read_activate    ),
   .o_odma1_size       (of_read_size        ),
 
-  //BRAM Interface
-  .o_ibuf_go          (w_ibuf_go           ),
-  .i_ibuf_bsy         (w_ibuf_bsy          ),
-  .i_ibuf_ddr3_fault  (w_ibuf_ddr3_fault   ),
-  .o_ibuf_count       (w_ibuf_count        ),
-  .o_ibuf_start_addrb (w_ibuf_start_addrb  ),
-  .i_ibuf_addrb       (w_ibuf_addrb        ),
-  .o_ibuf_doutb       (w_ibuf_doutb        ),
-  .o_ibuf_ddr3_addrb  (w_ibuf_ddr3_addrb   ),
+  .i_init_calib_complete(init_calib_complete  ),
+                      
+  .o_app_en           (app_en               ),
+  .i_app_rdy          (app_rdy              ),
+  .o_app_cmd          (app_cmd              ),
+  .o_app_addr         (app_addr             ),
+                      
+  .i_app_wdf_rdy      (app_wdf_rdy          ),
+  .o_app_wdf_wren     (app_wdf_wren         ),
+  .o_app_wdf_end      (app_wdf_end          ),
+  .o_app_wdf_data     (app_wdf_data         ),
+  .o_app_wdf_mask     (app_wdf_mask         ),
+                      
+  .i_app_rd_data      (app_rd_data          ),
+  .i_app_rd_data_end  (app_rd_data_end      ),
+  .i_app_rd_data_valid(app_rd_data_valid    ),
 
-  .o_obuf_go          (w_obuf_go           ),
-  .i_obuf_bsy         (w_obuf_bsy          ),
-  .i_obuf_ddr3_fault  (w_obuf_ddr3_fault   ),
-  .o_obuf_count       (w_obuf_count        ),
-  .o_obuf_start_addra (w_obuf_start_addra  ),
-  .i_obuf_addra       (w_obuf_addra        ),
-  .i_obuf_dina        (w_obuf_dina         ),
-  .i_obuf_wea         (w_obuf_wea          ),
-  .o_obuf_ddr3_addra  (w_obuf_ddr3_addra   ),
-
-
-  .o_ing_enable       (w_ing_enable        ),
-  .o_egr_enable       (w_egr_enable        ),
-  .o_inout_enable     (w_inout_enable      ),
-  .o_state            (w_dac_state         )
+  .o_ing_enable       (w_ing_enable         ),
+  .o_egr_enable       (w_egr_enable         ),
+  .o_inout_enable     (w_inout_enable       ),
+  .o_state            (w_dac_state          )
 );
 
 
@@ -468,10 +372,6 @@ assign  w_read_address_en  = i_wbs_cyc && !r_prev_cyc; //Only read address on cy
 assign  app_zq_req        = 0;  //Set to 0
 assign  app_sr_req        = 0; //Reserved, set to zero
 assign  app_ref_req       = 0; //Core Manages Refresh Requests
-assign  app_wdf_mask      = 4'h0;
-
-
-
 
 assign  o_debug[3:0]      = w_dac_state;
 
@@ -489,10 +389,10 @@ assign  o_debug[14]       = of_read_strobe;
 assign  o_debug[15]       = init_calib_complete;
 assign  o_debug[16]       = w_ingress_en;
 assign  o_debug[17]       = w_egress_en;
-assign  o_debug[18]       = w_ibuf_go;
-assign  o_debug[19]       = w_ibuf_bsy;
-assign  o_debug[20]       = w_obuf_go;
-assign  o_debug[21]       = w_obuf_bsy;
+assign  o_debug[18]       = 1'b0;
+assign  o_debug[19]       = 1'b0;
+assign  o_debug[20]       = 1'b0;
+assign  o_debug[21]       = 1'b0;
 assign  o_debug[22]       = app_en;
 
 assign  o_debug[25:24]    = w_ing_enable;
@@ -622,4 +522,3 @@ always @ (posedge clk) begin
   end
 end
 endmodule
-

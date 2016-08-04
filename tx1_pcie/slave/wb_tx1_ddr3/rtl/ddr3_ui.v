@@ -26,43 +26,43 @@
   *
   * */
 module ddr3_ui #(
-  parameter          BUF_DEPTH       = 10,
-  parameter          MEM_ADDR_DEPTH  = 28
+                        parameter                           BUF_DEPTH       = 10,
+                        parameter                           MEM_ADDR_DEPTH  = 28
 )(
-  input              ui_clk,
+                        input                               ui_clk,
 
-  input              i_app_phy_init_done,
-  input              i_app_rdy,
-  input              i_app_wdf_rdy,
-  output reg         o_app_en,
-  output reg   [2:0] o_app_cmd,
-  output reg  [MEM_ADDR_DEPTH - 1:0] o_app_addr,
-  output reg         o_app_wdf_wren,
-  output reg         o_app_wdf_end,
-  output      [31:0] o_app_wdf_data,
-  input              i_app_rd_data_valid,
-  input              i_app_rd_data_end,
-  input       [31:0] i_app_rd_data,
+                        input                               i_app_phy_init_done,
+                        input                               i_app_rdy,
+                        input                               i_app_wdf_rdy,
+                        output reg                          o_app_en,
+                        output reg   [2:0]                  o_app_cmd,
+                        output reg  [MEM_ADDR_DEPTH - 1:0]  o_app_addr,
+                        output reg                          o_app_wdf_wren,
+                        output reg                          o_app_wdf_end,
+  (* keep = "true" *)   output      [31:0]                  o_app_wdf_data,
+                        input                               i_app_rd_data_valid,
+                        input                               i_app_rd_data_end,
+                        input       [31:0]                  i_app_rd_data,
 
-  input              i_ibuf_go,
-  output reg         o_ibuf_bsy,
-  output reg         o_ibuf_ddr3_fault,
-  input       [BUF_DEPTH - 1:0] i_ibuf_count,
-  input       [BUF_DEPTH - 1:0] i_ibuf_start_addrb,
-  output reg  [BUF_DEPTH - 1:0] o_ibuf_addrb,
-  input       [31:0] i_ibuf_doutb,
-  input       [MEM_ADDR_DEPTH - 1:0] i_ibuf_ddr3_addrb,
+                        input                               i_ibuf_go,
+                        output reg                          o_ibuf_bsy,
+                        output reg                          o_ibuf_ddr3_fault,
+                        input       [BUF_DEPTH - 1:0]       i_ibuf_count,
+                        input       [BUF_DEPTH - 1:0]       i_ibuf_start_addrb,
+                        output reg  [BUF_DEPTH - 1:0]       o_ibuf_addrb,
+                        input       [31:0]                  i_ibuf_doutb,
+                        input       [MEM_ADDR_DEPTH - 1:0]  i_ibuf_ddr3_addrb,
 
-  input              i_obuf_go,
-  output reg         o_obuf_bsy,
-  output reg         o_obuf_ddr3_fault,
-  input       [BUF_DEPTH - 1:0] i_obuf_count,
-  input       [BUF_DEPTH - 1:0] i_obuf_start_addra,
-  output reg  [BUF_DEPTH - 1:0] o_obuf_addra,
-  output reg  [31:0] o_obuf_dina,
-  output reg         o_obuf_wea,
-  input       [MEM_ADDR_DEPTH - 1:0] i_obuf_ddr3_addra,
-  input              rst
+                        input                               i_obuf_go,
+                        output reg                          o_obuf_bsy,
+                        output reg                          o_obuf_ddr3_fault,
+                        input       [BUF_DEPTH - 1:0]       i_obuf_count,
+                        input       [BUF_DEPTH - 1:0]       i_obuf_start_addra,
+                        output reg  [BUF_DEPTH - 1:0]       o_obuf_addra,
+                        output reg  [31:0]                  o_obuf_dina,
+                        output reg                          o_obuf_wea,
+                        input       [MEM_ADDR_DEPTH - 1:0]  i_obuf_ddr3_addra,
+                        input                               rst
 );
 
 localparam ST_IDLE          = 2'h0;
@@ -72,7 +72,7 @@ localparam ST_DDR3_TO_OBUF  = 2'h2;
 localparam CMD_WR   = 3'b000;
 localparam CMD_RD   = 3'b001;
 
-reg  [MEM_ADDR_DEPTH - 1:0] r_app_addr;
+reg  [MEM_ADDR_DEPTH - 4:0] r_app_addr;
 reg  [BUF_DEPTH - 1:0] r_app_count;
 reg  [BUF_DEPTH - 1:0] r_app_addr_count;
 reg  [BUF_DEPTH - 1:0] r_app_data_count;
@@ -147,7 +147,7 @@ end else begin
                 o_ibuf_bsy        <= 1;
                 o_app_cmd         <= CMD_WR;
                 r_app_addr        <= i_ibuf_ddr3_addrb;
-                r_app_count       <= i_ibuf_count;
+                r_app_count       <= {i_ibuf_count[BUF_DEPTH - 1:1], 1'b1};
                 o_ibuf_addrb      <= i_ibuf_start_addrb;
                 o_ibuf_ddr3_fault <= 0;
                 r_state           <= ST_IBUF_TO_DDR3;
@@ -199,6 +199,9 @@ end else begin
                     if (o_app_wdf_wren) begin
                         r_app_data_count <= r_app_data_count + 1;
                         o_app_wdf_end    <= ~o_app_wdf_end;
+                        if ((o_app_wdf_end) && ((r_app_data_count + 1) == r_app_data_count)) begin
+                            o_app_wdf_wren  <=  0;
+                        end
                     end
                 end else begin
                     if (r_app_data_timer == 100) begin

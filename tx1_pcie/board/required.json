@@ -55,7 +55,7 @@
   },
   "MEMORY":{
     "ddr3_mem":{
-      "filename":"wb_tx1_ddr3.v",
+      "filename":"wb_tx1_ppfifo_ddr3.v",
       "cores_back":[
         "tx1_ddr3.ngc"
       ],
@@ -246,6 +246,8 @@
   },
   "dependencies":[
     "ddr3_pll.v",
+    "ddr3_ppfifo_controller.v",
+    "ddr3_app_if.v",
     "tx1_ddr3.v",
     "mig_7series_v1_9_clk_ibuf.v",
     "mig_7series_v1_9_infrastructure.v",

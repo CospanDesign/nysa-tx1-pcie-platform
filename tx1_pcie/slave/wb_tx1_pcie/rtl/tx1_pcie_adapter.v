@@ -1039,7 +1039,7 @@ ingress_buffer_manager buf_man (
   .clk                        (user_clk                   ),
   .rst                        (o_sys_rst                  ),
 
-  //.o_rcv_state                (o_dbg_state                ),
+  .o_rcv_state                (o_dbg_state                ),
   //.o_gen_state                (o_dbg_state                ),
 
   //Host Interface
@@ -1195,7 +1195,7 @@ pcie_control controller (
   .o_ctl_state                (o_controller_state         )
   //.o_ctl_state                (o_dbg_state                )
 );
-assign  o_dbg_state = o_controller_state;
+//assign  o_dbg_state = o_controller_state;
 
 /*
 assign  o_dbg_state[0] = cfg_err_cor | cfg_err_ur | cfg_err_ecrc | cfg_err_cpl_timeout | cfg_err_cpl_abort | cfg_err_cpl_unexpect | cfg_err_posted | cfg_err_locked | cfg_err_tlp_cpl_header;

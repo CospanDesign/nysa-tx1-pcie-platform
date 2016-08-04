@@ -531,7 +531,8 @@ ssize_t nysa_pcie_write_data(nysa_pcie_dev_t *dev, const char __user * user_buf,
   mod_info_dbg("Prepare Buffers\n");
 
   //We need to set up the initial buffers so the FPGA has something to work with
-  for (buffer_index = 0; buffer_index < WRITE_BUFFER_COUNT; buffer_index++)
+  //for (buffer_index = 0; buffer_index < WRITE_BUFFER_COUNT; buffer_index++)
+  for (buffer_index = 0; buffer_index < 1; buffer_index++)
   {
     if (pos < count)
     {
@@ -672,7 +673,7 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
   };
 
   //Update the buffer status on the FPGA so that it knows it can write to both the buffers
-  mod_info_dbg("Tell the device that our buffers are ready\n");
+  //mod_info_dbg("Tell the device that our buffers are ready\n");
   update_buffer_status(dev, 0x3); //bitmask of both buffers ready
 
   //There should be a count of zero on the semaphore, when the interrupt context reads a packet it should call this
@@ -680,24 +681,24 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
 
   while (pos < count)
   {
-    mod_info_dbg("Wait for semaphore...\n");
+    //mod_info_dbg("Wait for semaphore...\n");
     if (kfifo_is_empty(&dev->rw_fifo))
     {
       if (down_interruptible(&dev->rw_sem))
       {
-        mod_info_dbg("Received an interrupt while waiting for data\n");
+        //mod_info_dbg("Received an interrupt while waiting for data\n");
         return pos;  //We were interrupted
       }
     }
     else
     {
-      mod_info_dbg("\tfifo avail\n");
+      //mod_info_dbg("\tfifo avail\n");
       retval = down_trylock(&dev->rw_sem);
     }
     if (dev->state != RUNNING)
     {
       //Need to bail, things just got shut down
-      mod_info_dbg("Module was destroyed while reading\n");
+      //mod_info_dbg("Module was destroyed while reading\n");
       return pos;
     }
     retval = kfifo_get(&dev->rw_fifo, &buffer_index);
@@ -705,20 +706,20 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
     //if (kfifo_out_locked(&dev->rw_fifo, &buffer_index, 1, &dev->rw_spinlock) == 0)
     {
       //There was no data in the KFIFO, this is bad, run RUN!
-      mod_info_dbg("A semaphore woke us up but there was no data in KFIFO!?\n");
+      //mod_info_dbg("A semaphore woke us up but there was no data in KFIFO!?\n");
       return pos;
     }
 
     if (dev->rw_fifo_item[buffer_index].indexa < dev->rw_index)
     {
-      mod_info_dbg("too far\n");
+      //mod_info_dbg("too far\n");
       continue;
     }
 
     //Check for missed data
     if (dev->rw_fifo_item[buffer_index].indexa > dev->rw_index)
     {
-      mod_info_dbg("Missed!: %d:%d\n", dev->rw_fifo_item[buffer_index].indexa, dev->rw_index);
+      //mod_info_dbg("Missed!: %d:%d\n", dev->rw_fifo_item[buffer_index].indexa, dev->rw_index);
       //Process the missed packet data
       size = NYSA_PCIE_BUFFER_SIZE;
       if (size > (count - pos))
@@ -729,7 +730,7 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
       else
         missed_index = 0;
 
-      //mod_info_dbg("Copy over %d bytes from buffer %d to user buffer at offset 0x%08X\n", size, missed_index, pos);
+      ////mod_info_dbg("Copy over %d bytes from buffer %d to user buffer at offset 0x%08X\n", size, missed_index, pos);
       dma_sync_single_for_cpu(&dev->pdev->dev, dev->read_dma_addr[missed_index], NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
       retval = copy_to_user(&user_buf[pos], dev->read_buffer[missed_index], size);
       dma_sync_single_for_device(&dev->pdev->dev, dev->read_dma_addr[missed_index], NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
@@ -750,7 +751,7 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
     if (size > (count - pos))
       size = count - pos;
 
-    mod_info_dbg("Copy over %d bytes from buffer %d to user buffer at offset 0x%08X\n", size, buffer_index, pos);
+    //mod_info_dbg("Copy over %d bytes from buffer %d to user buffer at offset 0x%08X\n", size, buffer_index, pos);
     dma_sync_single_for_cpu(&dev->pdev->dev, dev->read_dma_addr[buffer_index], NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
     retval = copy_to_user(&user_buf[pos], dev->read_buffer[buffer_index], size);
     dma_sync_single_for_device(&dev->pdev->dev, dev->read_dma_addr[buffer_index], NYSA_PCIE_BUFFER_SIZE, PCI_DMA_FROMDEVICE);
@@ -762,9 +763,9 @@ ssize_t nysa_pcie_read_data(nysa_pcie_dev_t *dev, char __user * user_buf, size_t
     else
       update_buffer_status(dev, 0x02);
 
-    mod_info_dbg("Count: 0x%zX Position: 0x%08X  Size: 0x%08X\n", count, pos, size);
+    //mod_info_dbg("Count: 0x%zX Position: 0x%08X  Size: 0x%08X\n", count, pos, size);
   }
-  mod_info_dbg("Finished!\n");
+  //mod_info_dbg("Finished!\n");
   return count;
 }
 

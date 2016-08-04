@@ -154,6 +154,7 @@ localparam  EGR_MAX               = 1;
 //registes/wires
 reg     [3:0]                   state;
 reg     [31:0]                  r_ram_addr;
+reg                             r_reset_fifo;
 reg     [3:0]                   r_select;
 reg                             r_ingress_path_en;
 reg                             r_egress_path_en;
@@ -311,7 +312,7 @@ ppfifo #(
   .ADDRESS_WIDTH              (BUF_DEPTH                  )
 ) lcl_egress_fifo (
   //.reset                      (rst || ui_rst            ),
-  .reset                      (rst                        ),
+  .reset                      (rst || r_reset_fifo        ),
   //Write Side
   //.write_clock                (ui_clk                     ),
   .write_clock                (clk                        ),
@@ -490,6 +491,7 @@ always @ (posedge clk) begin
   r_mem_2_ppfifo_stb    <=  0;
   r_ibuf_go             <=  0;
   r_obuf_go             <=  0;
+  r_reset_fifo          <=  0;
 
   if (rst) begin
     state               <=  IDLE;
@@ -645,6 +647,7 @@ always @ (posedge clk) begin
         //User has requested data, it really doesn't matter the size. Ask the memory to populate
         //the local block RAM, we can manage the count one 1024 block at a time
         if (!w_egress_enable) begin
+          r_reset_fifo            <=  1;
           state                   <=  IDLE;
         end
         else begin

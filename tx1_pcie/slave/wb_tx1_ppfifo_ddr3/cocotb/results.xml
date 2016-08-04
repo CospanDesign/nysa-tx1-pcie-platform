@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites name="results">
+  <testsuite name="all" package="all" tests="0">
+    <testcase classname="test_dut" name="single_block_write_read_test" time="3.9586479663848877" />
+  </testsuite>
+</testsuites>
