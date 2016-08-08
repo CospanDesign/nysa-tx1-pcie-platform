@@ -146,7 +146,7 @@ always @ (posedge clk) begin
         o_app_cmd       <=  0;
         r_app_addr      <=  0;
 
-        if (i_ingress_en) begin
+        if (i_ingress_en && i_ingress_rdy) begin
           r_app_addr    <=  i_ingress_dword_addr;
           o_app_cmd     <=  CMD_WR;
           state         <= PREP_WR;
@@ -159,10 +159,11 @@ always @ (posedge clk) begin
       end
       PREP_WR: begin
         //Get the PPFIFO
-        if (i_ingress_en || i_ingress_rdy) begin
+        if (i_ingress_en && i_ingress_rdy) begin
           //There is still some data to send
           r_data_count      <=  0;
           if (i_ingress_rdy && !o_ingress_act) begin
+            //r_app_addr      <=  i_ingress_dword_addr;
             o_ingress_act   <=  1;
             state           <=  PREP_WR_DATA1;
           end
@@ -250,10 +251,7 @@ always @ (posedge clk) begin
           o_app_wdf_end       <=  0;
           r_data_count        <=  r_data_count + 1;
 
-          if ((r_data_count + 1) >= i_ingress_size) begin
-            o_app_wdf_wren    <=  0;
-          end
-          else begin
+          if ((r_data_count + 1) < i_ingress_size) begin
             if (r_tmp_store) begin
               r_tmp_store     <=  0;
             end
@@ -263,7 +261,12 @@ always @ (posedge clk) begin
           if (i_app_rdy || !o_app_en) begin
             //App Data is sending or has already been sent
             state             <=  WR_TO_RAM_BOT;
-            o_app_wdf_wren    <=  1;
+            if ((r_data_count + 1) >= i_ingress_size) begin
+              o_app_wdf_wren    <=  0;
+            end
+            else begin
+              o_app_wdf_wren    <=  1;
+            end
           end
           else begin
             state             <=  SEND_WR_CMD;

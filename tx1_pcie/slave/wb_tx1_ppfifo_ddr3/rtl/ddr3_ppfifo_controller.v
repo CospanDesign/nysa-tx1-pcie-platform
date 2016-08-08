@@ -33,7 +33,8 @@ SOFTWARE.
 module ddr3_ppfifo_controller #(
   parameter                           ING_BUF_DEPTH   = 10,
   parameter                           EGR_BUF_DEPTH   = 6,
-  parameter                           MEM_ADDR_DEPTH  = 28
+  parameter                           MEM_ADDR_DEPTH  = 28,
+  parameter                           PATH_COUNT      = 2
 
 )(
   input                               clk,
@@ -136,18 +137,15 @@ localparam  ODMA_FIRST            = 4'h8;
 localparam  ODMA_ACTIVE           = 4'h9;
 localparam  ODMA_WAIT_FOR_IDLE    = 4'hA;
 
-localparam  ING_MAX               = 1;
-localparam  EGR_MAX               = 1;
-
 localparam  TIMEOUT               = 256;
 
 
 //registes/wires
 (* keep = "true" *) reg     [3:0]                   state;
-reg     [MEM_ADDR_DEPTH - 3:0]  r_ram_addr;
+(* keep = "true" *) reg     [MEM_ADDR_DEPTH - 3:0]  r_ram_addr;
 reg     [3:0]                   r_select;
-reg                             r_ing_path_en;
-reg                             r_egr_path_en;
+(* keep = "true" *) reg                             r_ing_path_en;
+(* keep = "true" *) reg                             r_egr_path_en;
 
 reg                             r_ing_app_en;
 wire                            w_cc_ing_app_en;
@@ -164,9 +162,9 @@ wire    [ING_BUF_DEPTH - 1: 0]  w_bram_addr;
 wire    [1:0]                   w_inout_enable;
 wire                            w_inout_priority;
 
-(*keep = "true" *)wire                            w_ingress_enable;
+(*keep = "true" *)wire          w_ingress_enable;
 reg                             r_ingress_finished;
-wire    [MEM_ADDR_DEPTH - 1:0]  w_ingress_address;
+wire    [MEM_ADDR_DEPTH - 2:0]  w_ingress_address;
 wire                            w_ingress_bsy;
 wire    [23:0]                  w_ingress_count;
 wire                            w_ingress_flush;  //XXX: Do I need to use this??
@@ -175,16 +173,13 @@ wire                            w_contention;
 reg                             r_release;
 reg     [31:0]                  r_timeout;
 
-
-wire                            w_ingress_fifo_stb;
-(*keep = "true" *) wire  [1:0]  w_ingress_fifo_rdy;
-wire    [1:0]                   w_ingress_fifo_act;
-wire    [23:0]                  w_ingress_fifo_size;
-wire    [31:0]                  w_ingress_fifo_data;
+reg     [PATH_COUNT - 1:0]      r_prev_in_active;
+wire    [PATH_COUNT - 1:0]      w_ing_active_start_stb;
+wire    [PATH_COUNT - 1:0]      w_cc_in_active_stb;
 
 
-(*keep = "true" *) wire                            w_egress_enable;
-wire    [MEM_ADDR_DEPTH - 1:0]  w_egress_address;
+(*keep = "true" *) wire         w_egress_enable;
+(*keep = "true" *) wire    [MEM_ADDR_DEPTH - 2:0]  w_egress_address;
 wire    [23:0]                  w_egress_count;
 wire                            w_egress_flush;  //XXX: Do I need to use this??
 
@@ -195,77 +190,209 @@ wire                            w_egress_flush;  //XXX: Do I need to use this??
 (*keep = "true" *) wire    [23:0]                  w_egress_fifo_size;
 (*keep = "true" *) wire    [31:0]                  w_egress_fifo_data;
 
-wire    [ING_MAX:0]             w_ing_enable;
-wire    [ING_MAX:0]             w_ing_finished;
-wire    [MEM_ADDR_DEPTH - 1:0]  w_ing_mem_addr  [0:ING_MAX];
-wire    [ING_MAX:0]             w_ing_bsy;
-wire    [23:0]                  w_ing_count     [0:ING_MAX];
-wire    [ING_MAX:0]             w_ing_flush;
+wire    [PATH_COUNT - 1:0]      w_ing_start;
+wire    [PATH_COUNT - 1:0]      w_ing_active;
+wire    [PATH_COUNT - 1:0]      w_ing_finished;
+wire    [MEM_ADDR_DEPTH - 1:0]  w_ing_mem_addr  [0:PATH_COUNT - 1];
+wire    [MEM_ADDR_DEPTH - 1:0]  w_cc_ing_mem_addr  [0:PATH_COUNT - 1];
+wire    [PATH_COUNT - 1: 0]     w_cc_ing_enable;
+wire    [PATH_COUNT - 1:0]      w_ing_bsy;
+wire    [23:0]                  w_ing_count     [0:PATH_COUNT - 1];
+wire    [PATH_COUNT - 1:0]      w_ing_flush;
 
-wire    [ING_MAX:0]             w_ing_fifo_stb;
-wire    [1:0]                   w_ing_fifo_rdy  [0:ING_MAX];
-wire    [1:0]                   w_ing_fifo_act  [0:ING_MAX];
-wire    [23:0]                  w_ing_fifo_size [0:ING_MAX];
-wire    [31:0]                  w_ing_fifo_data [0:ING_MAX];
+wire    [PATH_COUNT - 1:0]      w_ing_fifo_stb;
+wire    [1:0]                   w_ing_fifo_rdy  [0:PATH_COUNT - 1];
+wire    [1:0]                   w_ing_fifo_act  [0:PATH_COUNT - 1];
+wire    [23:0]                  w_ing_fifo_size [0:PATH_COUNT - 1];
+wire    [31:0]                  w_ing_fifo_data [0:PATH_COUNT - 1];
 
 
-wire    [EGR_MAX:0]             w_egr_enable;
-wire    [MEM_ADDR_DEPTH - 1:0]  w_egr_mem_addr  [0:EGR_MAX];
-wire    [23:0]                  w_egr_count     [0:EGR_MAX];
-wire    [EGR_MAX:0]             w_egr_flush;
+wire    [PATH_COUNT - 1:0]      w_egr_enable;
+wire    [MEM_ADDR_DEPTH - 1:0]  w_egr_mem_addr  [0:PATH_COUNT - 1];
+wire    [23:0]                  w_egr_count     [0:PATH_COUNT - 1];
+wire    [PATH_COUNT - 1:0]      w_egr_flush;
 
-wire    [EGR_MAX:0]             w_egr_fifo_stb;
-wire    [EGR_MAX:0]             w_egr_fifo_rdy;
-wire    [EGR_MAX:0]             w_egr_fifo_act;
-wire    [23:0]                  w_egr_fifo_size [0:EGR_MAX];
-wire    [31:0]                  w_egr_fifo_data [0:EGR_MAX];
+wire    [PATH_COUNT - 1:0]      w_egr_fifo_stb;
+wire    [PATH_COUNT - 1:0]      w_egr_fifo_rdy;
+wire    [PATH_COUNT - 1:0]      w_egr_fifo_act;
+wire    [23:0]                  w_egr_fifo_size [0:PATH_COUNT - 1];
+wire    [31:0]                  w_egr_fifo_data [0:PATH_COUNT - 1];
+
+reg     [MEM_ADDR_DEPTH - 1:0]  r_ingress_address         [0:PATH_COUNT - 1];
+reg     [MEM_ADDR_DEPTH - 1:0]  r_egress_address          [0:PATH_COUNT - 1];
+wire    [MEM_ADDR_DEPTH - 1:0]  w_egress_address0;
+wire    [MEM_ADDR_DEPTH - 1:0]  w_egress_address1;
+wire    [MEM_ADDR_DEPTH - 1:0]  w_ingress_address0;
+wire    [MEM_ADDR_DEPTH - 1:0]  w_ingress_address1;
+
+
+
+reg     [1:0]                   r_prev_in_act             [0:PATH_COUNT - 1];
+reg     [1:0]                   r_prev_out_rdy            [0:PATH_COUNT - 1];
+reg                             r_addr_out_stb            [0:PATH_COUNT - 1];
+
+reg                             r_addr_fifo_stb           [0:PATH_COUNT - 1];
 
 //PPFIFO to BRAM
-wire                            w_ing_ddr3_fifo_rdy;
-wire                            w_ing_ddr3_fifo_act;
-wire    [23:0]                  w_ing_ddr3_fifo_size;
-wire                            w_ing_ddr3_fifo_stb;
-wire    [31:0]                  w_ing_ddr3_fifo_data;
+wire    [PATH_COUNT - 1:0]      w_ing_ddr3_fifo_rdy_ary;
+wire    [PATH_COUNT - 1:0]      w_cc_ing_ddr3_fifo_rdy_ary;
+wire    [PATH_COUNT - 1:0]      w_ing_ddr3_fifo_act_ary;
+wire    [23:0]                  w_ing_ddr3_fifo_size_ary  [0:PATH_COUNT - 1];
+wire                            w_ing_ddr3_fifo_stb_ary   [0:PATH_COUNT - 1];
+wire    [31:0]                  w_ing_ddr3_fifo_data_ary  [0:PATH_COUNT - 1];
+
+
+wire                            w_cc_ing_ddr3_fifo_act_ary    [0:PATH_COUNT - 1];
+wire                            w_cc_ing_ddr3_fifo_act;
+
+(* keep = "true" *) wire                            w_ing_ddr3_fifo_rdy;
+(* keep = "true" *) wire                            w_ing_ddr3_fifo_act;
+(* keep = "true" *) wire    [23:0]                  w_ing_ddr3_fifo_size;
+(* keep = "true" *) wire                            w_ing_ddr3_fifo_stb;
+(* keep = "true" *) wire    [31:0]                  w_ing_ddr3_fifo_data;
 
 //PPFIFO to BRAM
-wire    [1:0]                   w_egr_ddr3_fifo_rdy;
-wire    [1:0]                   w_egr_ddr3_fifo_act;
-wire    [23:0]                  w_egr_ddr3_fifo_size;
-wire                            w_egr_ddr3_fifo_stb;
-wire    [31:0]                  w_egr_ddr3_fifo_data;
+(* keep = "true" *) wire    [1:0]                   w_egr_ddr3_fifo_rdy;
+(* keep = "true" *) wire    [1:0]                   w_egr_ddr3_fifo_act;
+(* keep = "true" *) wire    [23:0]                  w_egr_ddr3_fifo_size;
+(* keep = "true" *) wire                            w_egr_ddr3_fifo_stb;
+(* keep = "true" *) wire    [31:0]                  w_egr_ddr3_fifo_data;
 wire                            w_egress_inactive;
 
 reg                             r_egress_fifo_rst;
 
 wire                            w_egress_cc_inactive;
 
+wire                            w_cc_egr_ddr3_fifo_idle;
 wire                            ddr3_app_if_idle;
 (*keep = "true" *)wire                            ddr3_app_cc_if_idle;
 
-//submodules
-ppfifo #(
-  .DATA_WIDTH                 (32                         ),
-  .ADDRESS_WIDTH              (ING_BUF_DEPTH              )
-) lcl_ingress_fifo (
-  .reset                      (rst || ui_rst              ),
+wire    [1:0]                   w_prev_act0;
+wire    [1:0]                   w_prev_act1;
 
-  //Write Side
-  .write_clock                (clk                        ),
-  .write_ready                (w_ingress_fifo_rdy         ),
-  .write_activate             (w_ingress_fifo_act         ),
-  .write_fifo_size            (w_ingress_fifo_size        ),
-  .write_strobe               (w_ingress_fifo_stb         ),
-  .write_data                 (w_ingress_fifo_data        ),
-//  .inactive                   (w_ingress_inactive         ),
+genvar gvp;
+generate
 
-  //Read Side
-  .read_clock                 (ui_clk                     ),
-  .read_ready                 (w_ing_ddr3_fifo_rdy        ),
-  .read_activate              (w_ing_ddr3_fifo_act        ),
-  .read_count                 (w_ing_ddr3_fifo_size       ),
-  .read_strobe                (w_ing_ddr3_fifo_stb        ),
-  .read_data                  (w_ing_ddr3_fifo_data       )
-);
+  for (gvp = 0; gvp < PATH_COUNT; gvp = gvp + 1)  begin : ig_fifo
+  //submodules
+  ppfifo #(
+    .DATA_WIDTH                 (32                             ),
+    .ADDRESS_WIDTH              (ING_BUF_DEPTH                  )
+  ) lcl_ingress_fifo (
+    .reset                      (rst || ui_rst                  ),
+
+    //Write Side
+    .write_clock                (clk                            ),
+    .write_ready                (w_ing_fifo_rdy[gvp]            ),
+    .write_activate             (w_ing_fifo_act[gvp]            ),
+    .write_fifo_size            (w_ing_fifo_size[gvp]           ),
+    .write_strobe               (w_ing_fifo_stb[gvp]            ),
+    .write_data                 (w_ing_fifo_data[gvp]           ),
+  //  .inactive                   (w_ing_inactive                 ),
+
+    //Read Side
+    .read_clock                 (ui_clk                         ),
+    .read_ready                 (w_ing_ddr3_fifo_rdy_ary[gvp]   ),
+    .read_activate              (w_ing_ddr3_fifo_act_ary[gvp]   ),
+    .read_count                 (w_ing_ddr3_fifo_size_ary[gvp]  ),
+    .read_strobe                (w_ing_ddr3_fifo_stb_ary[gvp]   ),
+    .read_data                  (w_ing_ddr3_fifo_data_ary[gvp]  )
+  );
+
+  assign  w_egr_fifo_rdy  [gvp]         = (r_egr_path_en && (r_select == gvp))  ? w_egress_fifo_rdy               : 1'b0;
+  assign  w_egr_fifo_size [gvp]         = (r_egr_path_en && (r_select == gvp))  ? w_egress_fifo_size              : 24'h00;
+  assign  w_egr_fifo_data [gvp]         = (r_egr_path_en && (r_select == gvp))  ? w_egress_fifo_data              : 32'h00;
+
+  assign w_ing_ddr3_fifo_act_ary[gvp]   = (r_ing_path_en && (r_select == gvp))  ? w_ing_ddr3_fifo_act             : 1'b0;
+  assign w_ing_ddr3_fifo_stb_ary[gvp]   = (r_ing_path_en && (r_select == gvp))  ? w_ing_ddr3_fifo_stb             : 1'b0;
+
+  cross_clock_enable cce_act (
+    .rst                        (rst                            ),
+    .in_en                      (w_ing_ddr3_fifo_act_ary[gvp]   ),
+
+    .out_clk                    (clk                            ),
+    .out_en                     (w_cc_ing_ddr3_fifo_act_ary[gvp])
+  );
+
+  cross_clock_enable cce_rdy (
+    .rst                        (rst                            ),
+    .in_en                      (w_ing_ddr3_fifo_rdy_ary[gvp]   ),
+
+    .out_clk                    (clk                            ),
+    .out_en                     (w_cc_ing_ddr3_fifo_rdy_ary[gvp])
+  );
+
+  cross_clock_enable cce_enable (
+    .rst                        (rst                            ),
+    .in_en                      (w_ing_active[gvp]              ),
+
+    .out_clk                    (ui_clk                         ),
+    .out_en                     (w_cc_ing_enable[gvp]           )
+  );
+
+
+
+  cross_clock_strobe cc_ing_rst(
+    .rst                        (rst                            ),
+    .in_stb                     (!w_ing_active_start_stb[gvp]   ),
+    .in_clk                     (clk                            ),
+
+    .out_clk                    (ui_clk                         ),
+    .out_stb                    (w_cc_in_active_stb[gvp]        )
+  );
+
+
+always @ (posedge clk) begin
+    r_prev_in_active[gvp]         <=  w_ing_active[gvp];
+end
+assign  w_ing_active_start_stb[gvp] = w_ing_active[gvp] & !r_prev_in_active[gvp];
+
+always @ (posedge ui_clk) begin
+  if (rst || ui_rst) begin
+    r_ingress_address[gvp]        <=  0;
+  end
+  else begin
+/*
+    if (!w_cc_ing_enable[gvp]) begin
+      r_ingress_address[gvp]      <=  w_ing_mem_addr[gvp] << 1;
+    end
+*/
+    if (w_cc_in_active_stb[gvp]) begin
+      r_ingress_address[gvp]      <=  w_ing_mem_addr[gvp] << 1;
+    end
+    else if (w_ing_ddr3_fifo_stb_ary[gvp]) begin
+      r_ingress_address[gvp]      <=  r_ingress_address[gvp] + 1;
+    end
+  end
+end
+
+always @ (posedge clk) begin
+  if (rst || ui_rst) begin
+    r_egress_address[gvp]       <=  0;
+  end
+  else begin
+    if (!w_egr_enable[gvp]) begin
+      r_egress_address[gvp]     <=  w_egr_mem_addr[gvp] << 1;
+    end
+    else if (w_egr_fifo_stb[gvp]) begin
+      r_egress_address[gvp]     <=  r_egress_address[gvp] + 1;
+    end
+  end
+end
+
+end
+
+endgenerate
+
+assign  w_ingress_address0      = r_ingress_address[0];
+assign  w_ingress_address1      = r_ingress_address[1];
+
+
+assign  w_egress_address0       = r_egress_address[0];
+assign  w_egress_address1       = r_egress_address[1];
+
+assign  w_prev_act0             = r_prev_in_act[0];
+assign  w_prev_act1             = r_prev_in_act[1];
 
 ppfifo #(
   .DATA_WIDTH                 (32                         ),
@@ -289,8 +416,6 @@ ppfifo #(
   .read_data                  (w_egress_fifo_data         ),
   .inactive                   (w_egress_inactive          )
 );
-
-
 
 ddr3_app_if #(
   .MEM_ADDR_DEPTH             (MEM_ADDR_DEPTH             )
@@ -320,7 +445,8 @@ ddr3_app_if #(
 
 
   .i_ingress_en               (w_cc_ing_app_en            ),
-  .i_ingress_dword_addr       (r_ram_addr                 ),
+  //.i_ingress_dword_addr       (r_ram_addr                 ),
+  .i_ingress_dword_addr       (w_ingress_address[MEM_ADDR_DEPTH - 2:1]          ),
 
   .i_ingress_rdy              (w_ing_ddr3_fifo_rdy        ),
   .o_ingress_act              (w_ing_ddr3_fifo_act        ),
@@ -329,7 +455,8 @@ ddr3_app_if #(
   .o_ingress_stb              (w_ing_ddr3_fifo_stb        ),
 
   .i_egress_en                (w_cc_egr_app_en            ),
-  .i_egress_dword_addr        (r_ram_addr                 ),
+  //.i_egress_dword_addr        (r_ram_addr                 ),
+  .i_egress_dword_addr        (w_egress_address[MEM_ADDR_DEPTH - 2:1]           ),
 
   .i_egress_rdy               (w_egr_ddr3_fifo_rdy        ),
   .o_egress_act               (w_egr_ddr3_fifo_act        ),
@@ -362,60 +489,62 @@ cross_clock_enable cce_egr_app_en(
   .out_en                     (w_cc_egr_app_en            )
 );
 
+cross_clock_enable cc3_egr_rdy(
+  .rst                        (rst                        ),
+  .in_en                      ((w_egr_ddr3_fifo_rdy == 2'b11) ),
+
+  .out_clk                    (clk                        ),
+  .out_en                     (w_cc_egr_ddr3_fifo_idle    )
+);
+
 //asynchronous logic
 //assign  w_bram_addr         = r_ing_path_en ? i_ibuf_addrb: i_obuf_addra;
 
-assign  w_ingress_enable    = r_ing_path_en ? w_ing_enable    [r_select] : 1'b0;
-assign  w_ingress_address   = r_ing_path_en ? w_ing_mem_addr  [r_select] : 0;
-assign  w_ingress_count     = r_ing_path_en ? w_ing_count     [r_select] : 24'h0;
-assign  w_ingress_flush     = r_ing_path_en ? w_ing_flush     [r_select] : 1'b0;
-assign  w_ingress_fifo_stb  = r_ing_path_en ? w_ing_fifo_stb  [r_select] : 1'b0;
-assign  w_ingress_fifo_act  = r_ing_path_en ? w_ing_fifo_act  [r_select] : 2'b0;
-assign  w_ingress_fifo_data = r_ing_path_en ? w_ing_fifo_data [r_select] : 32'h0;
+assign  w_ingress_enable    = r_ing_path_en ? w_ing_active              [r_select] : 1'b0;
+assign  w_ingress_count     = r_ing_path_en ? w_ing_count               [r_select] : 24'h0;
+assign  w_ingress_flush     = r_ing_path_en ? w_ing_flush               [r_select] : 1'b0;
 
-genvar gvi;
-generate
-for (gvi = 0; gvi <= ING_MAX; gvi = gvi + 1) begin: ingress_select_for
-  assign  w_ing_fifo_rdy  [gvi]  = (r_ing_path_en && (r_select == gvi) && !r_release) ? w_ingress_fifo_rdy   : 2'b00;
-  assign  w_ing_fifo_size [gvi]  = (r_ing_path_en && (r_select == gvi)) ? w_ingress_fifo_size  : 24'h00;
-  assign  w_ing_finished  [gvi]  = (r_ing_path_en && (r_select == gvi)) ? r_ingress_finished   : 1'b0;
-end
-endgenerate
+assign  w_cc_ing_ddr3_fifo_act = r_ing_path_en ? w_cc_ing_ddr3_fifo_act_ary[r_select] : 1'b0;
 
-assign  w_egress_enable     = r_egr_path_en ? w_egr_enable    [r_select] : 1'b0;
-assign  w_egress_address    = r_egr_path_en ? w_egr_mem_addr  [r_select] : 0;
-assign  w_egress_count      = r_egr_path_en ? w_egr_count     [r_select] : 24'h0;
-assign  w_egress_flush      = r_egr_path_en ? w_egr_flush     [r_select] : 1'b0;
-assign  w_egress_fifo_stb   = r_egr_path_en ? w_egr_fifo_stb  [r_select] : 1'b0;
-assign  w_egress_fifo_act   = r_egr_path_en ? w_egr_fifo_act  [r_select] : 1'b0;
+assign  w_egress_enable     = r_egr_path_en ? w_egr_enable              [r_select] : 1'b0;
+//assign  w_egress_address    = r_egr_path_en ? w_egr_mem_addr            [r_select] : 0;
+assign  w_egress_count      = r_egr_path_en ? w_egr_count               [r_select] : 24'h0;
+assign  w_egress_flush      = r_egr_path_en ? w_egr_flush               [r_select] : 1'b0;
+assign  w_egress_fifo_stb   = r_egr_path_en ? w_egr_fifo_stb            [r_select] : 1'b0;
+assign  w_egress_fifo_act   = r_egr_path_en ? w_egr_fifo_act            [r_select] : 1'b0;
 
-genvar gva;
-generate
-for (gva = 0; gva <= EGR_MAX; gva = gva + 1) begin: egress_select_for
-  assign  w_egr_fifo_rdy  [gva]  = (r_egr_path_en && (r_select == gva)) ? w_egress_fifo_rdy   : 1'b0;
-  assign  w_egr_fifo_size [gva]  = (r_egr_path_en && (r_select == gva)) ? w_egress_fifo_size  : 24'h00;
-  assign  w_egr_fifo_data [gva]  = (r_egr_path_en && (r_select == gva)) ? w_egress_fifo_data  : 32'h00;
-end
-endgenerate
+assign w_ing_ddr3_fifo_rdy  = r_ing_path_en  ? w_ing_ddr3_fifo_rdy_ary  [r_select] : 1'b0;
+assign w_ing_ddr3_fifo_size = r_ing_path_en  ? w_ing_ddr3_fifo_size_ary [r_select] : 24'b0;
+assign w_ing_ddr3_fifo_data = r_ing_path_en  ? w_ing_ddr3_fifo_data_ary [r_select] : 32'b0;
 
+assign w_ingress_address    = r_ing_path_en  ? r_ingress_address        [r_select] : 0;
+assign w_egress_address     = r_egr_path_en  ? r_egress_address         [r_select] : 0;
 
 //DMA In Interface 0
-assign w_ing_enable[0]    = i_idma0_enable;
-assign o_idma0_finished   = w_ing_finished[0];
-assign w_ing_mem_addr[0]  = i_idma0_addr;
-assign w_ing_bsy[0]       = i_idma0_busy;
-assign w_ing_count[0]     = i_idma0_count;
-assign w_ing_flush[0]     = i_idma0_flush;
+//assign w_ing_active[0]      = i_idma0_enable;
+assign w_ing_start[0]       = (w_ing_fifo_rdy[0] != 2'b11);
+assign w_ing_active[0]      = (i_idma0_enable || (w_ing_fifo_rdy[0] != 2'b11));
+assign w_ing_finished[0]    = !i_idma0_enable;
+//assign w_ing_active[0]      = w_cc_ing_ddr3_fifo_rdy_ary[0];
+assign o_idma0_finished     = w_ing_finished[0];
+assign w_ing_mem_addr[0]    = i_idma0_addr;
+assign w_ing_bsy[0]         = i_idma0_busy;
+assign w_ing_count[0]       = i_idma0_count;
+assign w_ing_flush[0]       = i_idma0_flush;
 
-assign w_ing_fifo_stb[0]  = i_idma0_strobe;
-assign o_idma0_ready      = w_ing_fifo_rdy[0];
-assign w_ing_fifo_act[0]  = i_idma0_activate;
-assign o_idma0_size       = w_ing_fifo_size[0];
-assign w_ing_fifo_data[0] = i_idma0_data;
+assign w_ing_fifo_stb[0]    = i_idma0_strobe;
+assign o_idma0_ready        = w_ing_fifo_rdy[0];
+assign w_ing_fifo_act[0]    = i_idma0_activate;
+assign o_idma0_size         = w_ing_fifo_size[0];
+assign w_ing_fifo_data[0]   = i_idma0_data;
 
 
 //DMA In Interface 1
-assign w_ing_enable[1]    = i_idma1_enable;
+assign w_ing_start[1]     = (w_ing_fifo_rdy[1] != 2'b11);
+assign w_ing_active[1]    = (i_idma1_enable || (w_ing_fifo_rdy[1] != 2'b11));
+//assign w_ing_active[1]    = w_cc_ing_ddr3_fifo_rdy_ary[1];
+//assign w_ing_finished[1]  = !w_ing_active[1];
+assign w_ing_finished[1]    = !i_idma1_enable;
 assign o_idma1_finished   = w_ing_finished[1];
 assign w_ing_mem_addr[1]  = i_idma1_addr;
 assign w_ing_bsy[1]       = i_idma1_busy;
@@ -430,6 +559,7 @@ assign w_ing_fifo_data[1] = i_idma1_data;
 
 //DMA Out Interface 0
 assign w_egr_enable[0]    = i_odma0_enable;
+//assign w_egr_enable[0]    = w_cc_ing_ddr3_fifo_rdy_ary[0];
 assign w_egr_mem_addr[0]  = i_odma0_address;
 assign w_egr_count[0]     = i_odma0_count;
 assign w_egr_flush[0]     = i_odma0_flush;
@@ -442,6 +572,7 @@ assign o_odma0_size       = w_egr_fifo_size[0];
 
 //DMA Out Interface 1
 assign w_egr_enable[1]    = i_odma1_enable;
+//assign w_egr_enable[1]    = w_cc_ing_ddr3_fifo_rdy_ary[1];
 assign w_egr_mem_addr[1]  = i_odma1_address;
 assign w_egr_count[1]     = i_odma1_count;
 assign w_egr_flush[1]     = i_odma1_flush;
@@ -453,7 +584,8 @@ assign w_egr_fifo_act[1]  = i_odma1_activate;
 assign o_odma1_size       = w_egr_fifo_size[1];
 
 
-assign  w_inout_enable[0] = (w_ing_enable != 0);
+//assign  w_inout_enable[0] = (w_ing_active != 0);
+assign  w_inout_enable[0] = (w_ing_start != 0);
 assign  w_inout_enable[1] = (w_egr_enable != 0);
 
 
@@ -463,8 +595,8 @@ assign  o_inout_enable    = 2'b0;
 
 assign  o_state           = state;
 
-assign  w_contention      = ((w_ing_enable == 2'b11) || (w_egr_enable == 2'b11)) || ((w_ing_enable != 0) && (w_egr_enable != 0));
-
+//assign  w_contention      = ((w_cc_ing_ddr3_fifo_rdy_ary == 2'b11) || (w_egr_enable == 2'b11)) || ((w_cc_ing_ddr3_fifo_rdy_ary != 0) && (w_egr_enable != 0));
+assign  w_contention      = ((w_ing_start == 2'b11) || (w_egr_enable == 2'b11)) || ((w_ing_start != 0) && (w_egr_enable != 0));
 
 //synchronous logic
 integer k;
@@ -531,7 +663,8 @@ always @ (posedge clk) begin
         endcase
       end
       IDMA_SELECT: begin
-        case(w_ing_enable)
+        //case(w_cc_ing_ddr3_fifo_rdy_ary)
+        case(w_ing_start)
           2'b01: begin
             $display("Select Ingress Channel 0");
             r_ingress_priority  <=  1;
@@ -550,7 +683,7 @@ always @ (posedge clk) begin
         endcase
         state                   <= IDMA_PREPARE;
         r_ing_path_en           <= 1;
-        r_ram_addr              <= w_ingress_address;
+        //r_ram_addr              <= w_ingress_address;
       end
       IDMA_PREPARE: begin
         state                   <= IDMA_FIRST;
@@ -599,7 +732,7 @@ always @ (posedge clk) begin
         end
       end
       ODMA_WAIT_FOR_IDLE: begin
-        if (ddr3_app_cc_if_idle) begin
+        if (ddr3_app_cc_if_idle && (!w_egress_enable || w_cc_egr_ddr3_fifo_idle)) begin
           state                 <= IDLE;
           r_egress_fifo_rst     <=  1;
         end
@@ -607,21 +740,21 @@ always @ (posedge clk) begin
 
       //Ingress
       IDMA_FIRST: begin
-        if (w_ingress_fifo_act > 0) begin
+        if (w_cc_ing_ddr3_fifo_act > 0) begin
           state                 <=  IDMA_ACTIVE;
         end
         //XXX: Need a timeout so that if the user is idle, it just moves to the next item
         if (r_timeout < TIMEOUT) begin
           r_timeout             <=  r_timeout + 1;
         end
-        else if (w_ingress_fifo_act == 0) begin
+        else if (w_cc_ing_ddr3_fifo_act == 0) begin
           state                 <=  IDMA_ACTIVE;
         end
 
       end
       IDMA_ACTIVE: begin
         //if (!w_ingress_enable || r_release) begin
-        if ((!w_ingress_enable || r_release) && (w_ingress_fifo_rdy == 2'b11)) begin
+        if (!w_ingress_enable || r_release) begin
           r_ing_app_en          <= 0;
           state                 <=  IDMA_WAIT_FOR_IDLE;
         end
@@ -643,7 +776,7 @@ always @ (posedge clk) begin
 
     if (w_contention) begin
       if (w_ingress_enable && (state == IDMA_ACTIVE)) begin
-        if (w_ingress_fifo_act > 0) begin
+        if (w_cc_ing_ddr3_fifo_act > 0) begin
           //At least on of the packets got through, we can let go
           r_release <=  1;
         end

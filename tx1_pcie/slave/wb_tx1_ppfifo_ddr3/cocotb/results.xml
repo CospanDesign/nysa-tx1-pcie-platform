@@ -1,6 +1,9 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <testsuites name="results">
   <testsuite name="all" package="all" tests="0">
-    <testcase classname="test_dut" name="single_block_write_read_test" time="3.9586479663848877" />
+    <testcase classname="test_dut" name="single_block_write_read_test" time="0.0">
+      <skipped />
+    </testcase>
+    <testcase classname="test_dut" name="single_wbs_read_write_test" time="2.9924418926239014" />
   </testsuite>
 </testsuites>

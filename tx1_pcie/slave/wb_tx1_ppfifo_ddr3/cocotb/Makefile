@@ -21,6 +21,7 @@ VERILOG_SOURCES += $(NYSA)/verilog/wishbone/slave/wb_dma/rtl/dma_prog_rom.v
 VERILOG_SOURCES += $(NYSA)/verilog/wishbone/slave/wb_test_dma_mem/rtl/wb_test_dma_mem.v
 VERILOG_SOURCES += $(NYSA)/verilog/wishbone/slave/wb_test_dma_mem/rtl/test_mem_dev.v
 
+VERILOG_SOURCES += ${NYSA}/verilog/generic/sync_fifo.v
 VERILOG_SOURCES += ${NYSA}/verilog/generic/bram.v
 VERILOG_SOURCES += ${NYSA}/verilog/wishbone/slave/wb_bram/rtl/wb_bram.v
 VERILOG_SOURCES += $(NYSA)/verilog/sim/wishbone/interconnect/example_2port_interconnect/wishbone_interconnect.v

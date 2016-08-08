@@ -180,24 +180,26 @@ reg     [23:0]              read_count;
 //wire                        clk_locked;
 
 //PPFIFO Interface
-reg                         if_write_strobe;
-wire    [1:0]               if_write_ready;
-reg     [1:0]               if_write_activate;
-wire    [23:0]              if_write_size;
-wire                        if_starved;
+ (* keep = "true" *)  reg                         if_write_strobe;
+ (* keep = "true" *)  wire    [1:0]               if_write_ready;
+ (* keep = "true" *)  reg     [1:0]               if_write_activate;
+ (* keep = "true" *)  wire    [23:0]              if_write_size;
+ (* keep = "true" *)  wire                        if_starved;
 
-reg                         of_read_strobe;
-wire                        of_read_ready;
-reg                         of_read_activate;
-wire    [23:0]              of_read_size;
-wire    [31:0]              of_read_data;
+ (* keep = "true" *)  reg                         of_read_strobe;
+ (* keep = "true" *)  wire                        of_read_ready;
+ (* keep = "true" *)  reg                         of_read_activate;
+ (* keep = "true" *)  wire    [23:0]              of_read_size;
+ (* keep = "true" *)  wire    [31:0]              of_read_data;
 
 wire    [MEM_ADDR_DEPTH - 1:0]  w_obuf_ddr3_addra;
 
 wire                            w_ingress_en;
 wire                            w_egress_en;
+reg                             r_egress_en;
+reg                             r_ingress_en;
 
-reg                             r_prev_cyc;
+reg                             r_prev_cyc = 0;
 wire                            w_read_address_en;
 wire                            pll_locked;
 
@@ -275,7 +277,7 @@ sim_tx1_ddr3_if ddr3_if(
   //.sys_rst             (rst                  )
 );
 
-  
+
 ddr3_ppfifo_controller #(
   .ING_BUF_DEPTH      (ING_BUF_DEPTH        ),
   .EGR_BUF_DEPTH      (EGR_BUF_DEPTH        ),
@@ -302,7 +304,8 @@ ddr3_ppfifo_controller #(
   .i_idma0_data       (i_idma0_data        ),
 
   //DMA In Interface 1 (Wishbone Ingress)
-  .i_idma1_enable     (w_ingress_en        ),
+  //.i_idma1_enable     (w_ingress_en        ),
+  .i_idma1_enable     (r_ingress_en        ),
   .o_idma1_finished   (                    ),
   .i_idma1_addr       (r_address           ),
   .i_idma1_busy       (1'b0                ), //Doesn't matter
@@ -328,8 +331,8 @@ ddr3_ppfifo_controller #(
   .o_odma0_size       (o_odma0_size        ),
 
   //DMA Out Interface 1 (Wishbone Egress)
-  .i_odma1_enable     (w_egress_en         ),
-  .i_odma1_address    (r_address           ),
+  .i_odma1_enable     (r_egress_en         ),
+  .i_odma1_address    (i_wbs_adr           ),
   .i_odma1_count      (24'h400             ),
   .i_odma1_flush      (1'b0                ), //Not used
 
@@ -340,18 +343,18 @@ ddr3_ppfifo_controller #(
   .o_odma1_size       (of_read_size        ),
 
   .i_init_calib_complete(init_calib_complete  ),
-                      
+
   .o_app_en           (app_en               ),
   .i_app_rdy          (app_rdy              ),
   .o_app_cmd          (app_cmd              ),
   .o_app_addr         (app_addr             ),
-                      
+
   .i_app_wdf_rdy      (app_wdf_rdy          ),
   .o_app_wdf_wren     (app_wdf_wren         ),
   .o_app_wdf_end      (app_wdf_end          ),
   .o_app_wdf_data     (app_wdf_data         ),
   .o_app_wdf_mask     (app_wdf_mask         ),
-                      
+
   .i_app_rd_data      (app_rd_data          ),
   .i_app_rd_data_end  (app_rd_data_end      ),
   .i_app_rd_data_valid(app_rd_data_valid    ),
@@ -416,6 +419,8 @@ always @ (posedge clk) begin
   //Deasserts Strobes
   if_write_strobe            <= 0;
   of_read_strobe             <= 0;
+  r_egress_en                <= w_egress_en;
+  r_ingress_en               <= w_ingress_en;
   if (rst) begin
     o_wbs_dat                <= 32'h0;
     o_wbs_ack                <= 0;
@@ -459,7 +464,8 @@ always @ (posedge clk) begin
 
     //when the master acks our ack, then put our ack down
     if (o_wbs_ack && ~i_wbs_stb)begin
-      o_wbs_ack <= 0;
+      //r_address               <=  r_address + 1;
+      o_wbs_ack               <= 0;
     end
 
 
@@ -518,7 +524,7 @@ always @ (posedge clk) begin
         end
       end
     end
-    r_prev_cyc                <=  i_wbs_cyc;
   end
+  r_prev_cyc                  <=  i_wbs_cyc;
 end
 endmodule

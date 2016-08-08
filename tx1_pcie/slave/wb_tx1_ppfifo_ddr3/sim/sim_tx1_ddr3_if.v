@@ -62,11 +62,12 @@ module sim_tx1_ddr3_if #(
   input                                        app_wdf_end,
   input   [3:0]                                app_wdf_mask,
   input                                        app_wdf_wren,
-  output  reg [31:0]                           app_rd_data,
+//  output  reg [31:0]                           app_rd_data,
+  output      [31:0]                           app_rd_data,
   output  reg                                  app_rd_data_end,
   output  reg                                  app_rd_data_valid,
-  output  reg                                  app_rdy,
-  output  reg                                  app_wdf_rdy,
+  output                                       app_rdy,
+  output                                       app_wdf_rdy,
   input                                        app_sr_req,
   output                                       app_sr_active,
   input                                        app_ref_req,
@@ -87,19 +88,19 @@ localparam            RD_FIFO_SIZE  = 16;
 //Registers/Wires
 
 
-wire                w_cmd_empty;
-wire                w_cmd_full;
-wire                w_wr_full;
-wire                w_wr_empty;
+wire                  w_cmd_empty;
+wire                  w_cmd_full;
+wire                  w_wr_full;
+wire                  w_wr_empty;
 
-reg [6:0]           r_wr_count;
-reg                 r_wr_underrun;
-reg                 r_wr_error;
-wire                w_rd_en;
-wire                w_rd_full;
-wire                w_rd_empty;
-reg                 r_rd_overflow;
-reg                 r_rd_error;
+reg           [6:0]   r_wr_count;
+reg                   r_wr_underrun;
+reg                   r_wr_error;
+wire                  w_rd_en;
+wire                  w_rd_full;
+wire                  w_rd_empty;
+reg                   r_rd_overflow;
+reg                   r_rd_error;
 
 
 reg           [23:0]  write_data_count = 0;
@@ -126,10 +127,104 @@ reg                   lcl_rst;
 reg                   read_req;
 reg                   write_req;
 reg                   r_prev_wdf_rdy;
+reg                   r_mem_stb;
 
 
 assign pll_locked           = 1;
+
+localparam                        IDLE          = 4'h0;
+localparam                        WRITE_PREPARE = 4'h1;
+localparam                        WRITE_BOT     = 4'h2;
+localparam                        WRITE_TOP     = 4'h3;
+localparam                        WRITE_FIN     = 4'h4;
+localparam                        READ_PREPARE  = 4'h5;
+localparam                        READ_BOT      = 4'h6;
+localparam                        READ_TOP      = 4'h7;
+
+
+reg     [3:0]                     state;
+
+reg                               r_cmd_stb;
+reg                               r_write_fifo_stb;
+reg   [MEM_ADDR_DEPTH - 2: 0]     r_fifo_app_addr;
+
 //Submodules
+
+wire  [MEM_ADDR_DEPTH - 3: 0]     w_fifo_app_addr;
+wire                              w_fifo_app_cmd;
+wire                              w_fifo_app_read_en;
+wire   [31:0]                     w_fifo_app_cmd_dout;
+wire                              w_fifo_app_empty;
+wire                              w_fifo_app_full;
+
+localparam                        CMD_DEPTH = 4;
+localparam                        WRITE_DEPTH = CMD_DEPTH + 2;
+
+sync_fifo #(
+  .DATA_WIDTH                     (32),
+  .MEM_DEPTH                      (CMD_DEPTH)
+) addr_fifo (
+  .in_clk                         (ui_clk),
+  .out_clk                        (ui_clk),
+  .rst                            (lcl_rst),
+
+  .empty                          (w_fifo_app_empty),
+  .full                           (w_fifo_app_full),
+
+  .i_in_data                      ({2'h0, app_addr[(MEM_ADDR_DEPTH - 1) : 2], 1'b0,  app_cmd}),
+  .i_in_stb                       (app_en & app_rdy),
+
+  .i_out_stb                      (r_cmd_stb),
+  .o_out_data                     (w_fifo_app_cmd_dout)
+
+);
+assign  w_fifo_app_addr           = w_fifo_app_cmd_dout[28:4];
+assign  w_fifo_app_cmd            = w_fifo_app_cmd_dout[0];
+assign  app_rdy                   = !w_fifo_app_full;
+
+wire  [31:0]                      ddr3_write_data;
+wire                              w_fifo_write_full;
+
+sync_fifo #(
+  .DATA_WIDTH                     (32),
+  .MEM_DEPTH                      (WRITE_DEPTH)
+) write_fifo (
+  .in_clk                         (ui_clk),
+  .out_clk                        (ui_clk),
+  .rst                            (lcl_rst),
+
+  .full                           (w_fifo_write_full),
+  .empty                          (),
+
+  .i_in_data                      (app_wdf_data),
+  .i_in_stb                       (app_wdf_wren & app_wdf_rdy),
+
+  .i_out_stb                      (r_write_fifo_stb),
+  .o_out_data                     (ddr3_write_data)
+
+);
+
+localparam  MEM_DEPTH = 16;
+wire  [MEM_DEPTH - 1: 0]        w_ddr3_addr;
+
+assign  w_ddr3_addr             = r_fifo_app_addr[(MEM_DEPTH - 1):0];
+assign  app_wdf_rdy             = !w_fifo_write_full;
+
+blk_mem #
+(
+  .DATA_WIDTH                    (32),
+  .ADDRESS_WIDTH                 (MEM_DEPTH)
+)
+u_ddr3 (
+    .clka                        (ui_clk),
+    .addra                       (w_ddr3_addr),
+    .dina                        (ddr3_write_data),
+    .wea                         (r_write_fifo_stb),
+
+    .clkb                        (ui_clk),
+    .addrb                       (w_ddr3_addr),
+    .doutb                       (app_rd_data)
+);
 
 
 //Asynchronous Logic
@@ -145,16 +240,15 @@ assign w_rd_empty     = ((read_data_size - read_data_count) == 0);
 
 assign w_block_length = 2;
 
-
 assign app_sr_active  = 0;
 assign app_ref_ack    = 0;
 
 always @ (*)  ui_clk  = sim_ui_clk;
 
 //Synchronous Logic
-parameter CFIFO_READ_DELAY = 20;
-parameter WFIFO_READ_DELAY = 20;
-parameter RFIFO_WRITE_DELAY = 10;
+parameter CFIFO_READ_DELAY      = 20;
+parameter WFIFO_READ_DELAY      = 20;
+parameter RFIFO_WRITE_DELAY     = 10;
 
 localparam  RST_COUNT           = 10;
 localparam  INIT_CALIB_TIMEOUT  = 50;
@@ -167,7 +261,6 @@ always @ (posedge ui_clk) begin
     lcl_rst                 <=  1;
   end
 end
-
 
 always @ (posedge ui_clk) begin
   ui_clk_sync_rst           <=  0;
@@ -192,23 +285,22 @@ always @ (posedge ui_clk) begin
   end
 end
 
-
-
-
 always @ (posedge ui_clk) begin
   app_rd_data_end       <=  0;
   app_rd_data_valid     <=  0;
-  app_rdy               <=  0;
-  app_wdf_rdy           <=  0;
   read_req              <=  0;
   write_req             <=  0;
+  r_mem_stb             <=  0;
+
+  r_cmd_stb             <=  0;
+  r_write_fifo_stb      <=  0;
 
   if (ui_clk_sync_rst) begin
     r_wr_count          <=  0;
     r_wr_underrun       <=  0;
     r_wr_error          <=  0;
 
-    app_rd_data         <=  0;
+//    app_rd_data         <=  0;
     r_rd_overflow       <=  0;
     r_rd_error          <=  0;
 
@@ -223,85 +315,58 @@ always @ (posedge ui_clk) begin
     write_timeout       <=  WFIFO_READ_DELAY;
     cmd_timeout         <=  CFIFO_READ_DELAY;
 
+    state               <=  IDLE;
+    r_fifo_app_addr     <=  0;
   end
   else begin
-    //Command Stuff
-    if (!w_cmd_full) begin
-      app_rdy           <=  1;
-    end
-
-    if (app_en && !w_cmd_full) begin
-      if (app_cmd == CMD_WRITE) begin
-        /*
-        if (write_data_count  <  w_block_length) begin
-          r_wr_underrun  <=  1;
+    case (state)
+      IDLE: begin
+        if (!w_fifo_app_empty) begin
+          if (!w_fifo_app_cmd) begin
+            state         <=  WRITE_PREPARE;
+            //state         <=  WRITE_BOT;
+          end
+          else begin
+            state         <=  READ_BOT;
+          end
+          r_fifo_app_addr <=  w_fifo_app_addr;
+          r_cmd_stb       <=  1;
         end
-        */
       end
-      cmd_count       <=  cmd_count + 1;
-      if (cmd_timeout == CFIFO_READ_DELAY) begin
-        cmd_timeout   <=  0;
+      WRITE_PREPARE: begin
+        r_write_fifo_stb  <=  1;
+        state             <= WRITE_BOT;
       end
-    end
-
-
-
-    if (app_en && app_rdy && !w_cmd_full && (app_cmd == CMD_WRITE)) begin
-      write_data_size   <=  write_data_size + 2;
-    end
-    if (app_en && app_rdy && (app_cmd == CMD_READ)) begin
-      read_data_size    <=  read_data_size + 2;
-    end
-
-    if (cmd_count > 0) begin
-      if (cmd_timeout < CFIFO_READ_DELAY) begin
-        cmd_timeout       <=  cmd_timeout + 1;
+      WRITE_BOT: begin
+        r_write_fifo_stb  <=  1;
+        r_mem_stb         <=  1;
+        r_fifo_app_addr   <=  r_fifo_app_addr + 1;
+        state             <=  WRITE_TOP;
       end
-      else begin
-        cmd_timeout       <=  0;
-        cmd_count         <=  cmd_count - 1;
+      WRITE_TOP: begin
+        r_fifo_app_addr   <=  r_fifo_app_addr + 1;
+        //r_write_fifo_stb  <=  1;
+        r_mem_stb         <=  1;
+        state             <=  WRITE_FIN;
       end
-    end
-
-
-    //Write Stuff
-    if (write_timeout < WFIFO_READ_DELAY) begin
-      write_timeout     <= write_timeout + 1;
-    end
-    else begin
-      write_timeout     <=  0;
-      write_data_count  <= write_data_count + 1;
-    end
-
-
-    if (!w_wr_full) begin
-      app_wdf_rdy       <=  1;
-    end
-
-
-
-    //Read Stuff
-    if (read_timeout < RFIFO_WRITE_DELAY) begin
-      read_timeout  <=  read_timeout + 1;
-    end
-    else begin
-      if (!w_rd_empty) begin
-        read_data_count <= read_data_count + 1;
+      WRITE_FIN: begin
+        state             <=  IDLE;
+      end
+      READ_BOT: begin
+        r_fifo_app_addr   <=  r_fifo_app_addr + 1;
         app_rd_data_valid <=  1;
-        if (read_data_count[0]) begin
-            app_rd_data_end <=  1;
-        end
+        state             <=  READ_TOP;
       end
-      else begin
-        read_timeout  <=  0;
+      READ_TOP: begin
+        app_rd_data_valid <=  1;
+        app_rd_data_end   <=  1;
+        //r_fifo_app_addr   <=  r_fifo_app_addr + 1;
+        state             <=  IDLE;
       end
-    end
-    if (app_rd_data_valid) begin
-        app_rd_data     <= app_rd_data + 1;
-    end
-
-    //Error Condition
-
+      default: begin
+        state         <=  IDLE;
+      end
+    endcase
   end
 end
 
