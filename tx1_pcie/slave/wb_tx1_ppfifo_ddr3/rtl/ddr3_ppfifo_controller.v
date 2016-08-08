@@ -147,6 +147,7 @@ reg     [3:0]                   r_select;
 (* keep = "true" *) reg                             r_ing_path_en;
 (* keep = "true" *) reg                             r_egr_path_en;
 
+wire  [1:0]                     w_idma_enable;
 reg                             r_ing_app_en;
 wire                            w_cc_ing_app_en;
 reg                             r_egr_app_en;
@@ -192,7 +193,7 @@ wire                            w_egress_flush;  //XXX: Do I need to use this??
 
 wire    [PATH_COUNT - 1:0]      w_ing_start;
 wire    [PATH_COUNT - 1:0]      w_ing_active;
-wire    [PATH_COUNT - 1:0]      w_ing_finished;
+reg     [PATH_COUNT - 1:0]      r_ing_finished;
 wire    [MEM_ADDR_DEPTH - 1:0]  w_ing_mem_addr  [0:PATH_COUNT - 1];
 wire    [MEM_ADDR_DEPTH - 1:0]  w_cc_ing_mem_addr  [0:PATH_COUNT - 1];
 wire    [PATH_COUNT - 1: 0]     w_cc_ing_enable;
@@ -334,7 +335,7 @@ generate
 
   cross_clock_strobe cc_ing_rst(
     .rst                        (rst                            ),
-    .in_stb                     (!w_ing_active_start_stb[gvp]   ),
+    .in_stb                     (w_ing_active_start_stb[gvp]    ),
     .in_clk                     (clk                            ),
 
     .out_clk                    (ui_clk                         ),
@@ -343,20 +344,15 @@ generate
 
 
 always @ (posedge clk) begin
-    r_prev_in_active[gvp]         <=  w_ing_active[gvp];
+    r_prev_in_active[gvp]         <=  w_idma_enable[gvp];
 end
-assign  w_ing_active_start_stb[gvp] = w_ing_active[gvp] & !r_prev_in_active[gvp];
+assign  w_ing_active_start_stb[gvp] = w_idma_enable[gvp] & !r_prev_in_active[gvp];
 
 always @ (posedge ui_clk) begin
   if (rst || ui_rst) begin
     r_ingress_address[gvp]        <=  0;
   end
   else begin
-/*
-    if (!w_cc_ing_enable[gvp]) begin
-      r_ingress_address[gvp]      <=  w_ing_mem_addr[gvp] << 1;
-    end
-*/
     if (w_cc_in_active_stb[gvp]) begin
       r_ingress_address[gvp]      <=  w_ing_mem_addr[gvp] << 1;
     end
@@ -393,6 +389,7 @@ assign  w_egress_address1       = r_egress_address[1];
 
 assign  w_prev_act0             = r_prev_in_act[0];
 assign  w_prev_act1             = r_prev_in_act[1];
+assign  w_idma_enable           = {i_idma1_enable, i_idma0_enable};
 
 ppfifo #(
   .DATA_WIDTH                 (32                         ),
@@ -524,9 +521,9 @@ assign w_egress_address     = r_egr_path_en  ? r_egress_address         [r_selec
 //assign w_ing_active[0]      = i_idma0_enable;
 assign w_ing_start[0]       = (w_ing_fifo_rdy[0] != 2'b11);
 assign w_ing_active[0]      = (i_idma0_enable || (w_ing_fifo_rdy[0] != 2'b11));
-assign w_ing_finished[0]    = !i_idma0_enable;
-//assign w_ing_active[0]      = w_cc_ing_ddr3_fifo_rdy_ary[0];
-assign o_idma0_finished     = w_ing_finished[0];
+//assign w_ing_finished[0]    = !i_idma0_enable;
+//assign o_idma0_finished     = w_ing_finished[0];
+assign o_idma0_finished     = r_ing_finished[0];
 assign w_ing_mem_addr[0]    = i_idma0_addr;
 assign w_ing_bsy[0]         = i_idma0_busy;
 assign w_ing_count[0]       = i_idma0_count;
@@ -542,10 +539,9 @@ assign w_ing_fifo_data[0]   = i_idma0_data;
 //DMA In Interface 1
 assign w_ing_start[1]     = (w_ing_fifo_rdy[1] != 2'b11);
 assign w_ing_active[1]    = (i_idma1_enable || (w_ing_fifo_rdy[1] != 2'b11));
-//assign w_ing_active[1]    = w_cc_ing_ddr3_fifo_rdy_ary[1];
-//assign w_ing_finished[1]  = !w_ing_active[1];
-assign w_ing_finished[1]    = !i_idma1_enable;
-assign o_idma1_finished   = w_ing_finished[1];
+//assign w_ing_finished[1]    = !i_idma1_enable;
+//assign o_idma1_finished   = w_ing_finished[1];
+assign o_idma1_finished   = r_ing_finished[1];
 assign w_ing_mem_addr[1]  = i_idma1_addr;
 assign w_ing_bsy[1]       = i_idma1_busy;
 assign w_ing_count[1]     = i_idma1_count;
@@ -602,6 +598,7 @@ assign  w_contention      = ((w_ing_start == 2'b11) || (w_egr_enable == 2'b11)) 
 integer k;
 always @ (posedge clk) begin
   r_egress_fifo_rst     <=  0;
+  r_ing_finished        <=  0;
 
   if (rst) begin
     state               <=  IDLE;
@@ -621,8 +618,6 @@ always @ (posedge clk) begin
     r_release           <=  0;
 
     r_timeout           <=  0;
-
-
   end
   else begin
     case (state)
@@ -763,6 +758,9 @@ always @ (posedge clk) begin
         if (ddr3_app_cc_if_idle) begin
           //Wrote all the data to memory, done
           state                 <= IDLE;
+        end
+        if (!w_ingress_enable) begin
+          r_ing_finished[r_select]  <=  1;
         end
       end
 
