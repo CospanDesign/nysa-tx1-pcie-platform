@@ -91,7 +91,7 @@ localparam          CMD_RD            = 3'b001;
 
 //registes/wires
 
-reg [3:0]                   state;
+(* keep = "true" *) reg [3:0]                   state;
 reg [MEM_ADDR_DEPTH - 3: 0] r_app_addr;
 
 wire [23:0]                 w_app_egr_size;
@@ -101,19 +101,16 @@ wire [23:0]                 w_data_egr_size;
 reg [31:0]                  r_data_req_count;
 reg [31:0]                  r_data_count;
 
-reg                         r_tmp_store;
-reg [31:0]                  r_tmp_data;
-
 //submodules
 //asynchronous logic
 assign  o_app_addr      = {r_app_addr, 3'b0};
-assign  w_app_egr_size  = {1'b0, i_egress_size[23:1]};
+//assign  w_app_egr_size  = {1'b0, i_egress_size[23:1]};
+assign  w_app_egr_size  = i_egress_size[23:0];
 
 assign  o_egress_stb    = i_app_rd_data_valid;
 assign  o_egress_data   = i_app_rd_data;
-assign  o_app_wdf_data  = r_tmp_store ? r_tmp_data : i_ingress_data;
+assign  o_app_wdf_data  = i_ingress_data;
 assign  idle            = (state == IDLE);
-
 //synchronous logic
 
 always @ (posedge clk) begin
@@ -129,8 +126,6 @@ always @ (posedge clk) begin
     o_app_wdf_wren      <=  0;
     r_data_req_count    <=  0;
     r_data_count        <=  0;
-    r_tmp_store         <=  0;
-    r_tmp_data          <=  0;
 //    o_app_wdf_data      <=  0;
     state               <=  IDLE;
   end
@@ -146,7 +141,7 @@ always @ (posedge clk) begin
         o_app_cmd       <=  0;
         r_app_addr      <=  0;
 
-        if (i_ingress_en && i_ingress_rdy) begin
+        if (i_ingress_en) begin
           r_app_addr    <=  i_ingress_dword_addr;
           o_app_cmd     <=  CMD_WR;
           state         <= PREP_WR;
@@ -159,11 +154,10 @@ always @ (posedge clk) begin
       end
       PREP_WR: begin
         //Get the PPFIFO
-        if (i_ingress_en && i_ingress_rdy) begin
+        if (i_ingress_en || i_ingress_rdy) begin
           //There is still some data to send
           r_data_count      <=  0;
           if (i_ingress_rdy && !o_ingress_act) begin
-            //r_app_addr      <=  i_ingress_dword_addr;
             o_ingress_act   <=  1;
             state           <=  PREP_WR_DATA1;
           end
@@ -189,19 +183,9 @@ always @ (posedge clk) begin
         //Write the data to the DDR3 write FIFO
         if(r_data_count < i_ingress_size) begin
           o_app_wdf_wren      <=  1;
-
-          if (!i_app_wdf_rdy && !r_tmp_store) begin
-            r_tmp_store         <=  1;
-            r_tmp_data          <=  i_ingress_data;
-          end
           if (o_app_wdf_wren && i_app_wdf_rdy) begin
             r_data_count      <=  r_data_count + 1;
-            if (r_tmp_store) begin
-              r_tmp_store     <=  0;
-            end
-            else begin
-              o_ingress_stb   <=  1;
-            end
+            o_ingress_stb     <=  1;
 //            o_app_wdf_data    <=  i_ingress_data;
             o_app_wdf_end     <=  1;
             o_app_en          <=  1;
@@ -238,10 +222,6 @@ always @ (posedge clk) begin
           - WR FIFO: [-] | CMD FIFO [-]: Wait for one of the following
                                             conditions to occur
         */
-        if (!i_app_wdf_rdy && !r_tmp_store) begin
-          r_tmp_store         <=  1;
-          r_tmp_data          <=  i_ingress_data;
-        end
         if (o_app_wdf_wren && i_app_wdf_rdy) begin
           /*
             WR has been accepted,
@@ -251,45 +231,32 @@ always @ (posedge clk) begin
           o_app_wdf_end       <=  0;
           r_data_count        <=  r_data_count + 1;
 
-          if ((r_data_count + 1) < i_ingress_size) begin
-            if (r_tmp_store) begin
-              r_tmp_store     <=  0;
-            end
-            o_ingress_stb     <=  1;
-          end
 
           if (i_app_rdy || !o_app_en) begin
             //App Data is sending or has already been sent
-            state             <=  WR_TO_RAM_BOT;
             if ((r_data_count + 1) >= i_ingress_size) begin
-              o_app_wdf_wren    <=  0;
+              o_app_wdf_wren  <=  0;
             end
             else begin
-              o_app_wdf_wren    <=  1;
+              o_app_wdf_wren  <=  1;
+            end
+            state             <=  WR_TO_RAM_BOT;
+            if ((r_data_count + 1) < i_ingress_size) begin
+              o_ingress_stb     <=  1;
+//            o_app_wdf_data    <=  i_ingress_data;
             end
           end
           else begin
             state             <=  SEND_WR_CMD;
             o_app_wdf_wren    <=  0;
-            if (o_ingress_stb) begin
-              o_ingress_stb   <=  0;
-            end
           end
         end
         if (i_app_rdy && o_app_en) begin
-          //Commands
           o_app_en            <=  0;
           r_app_addr          <=  r_app_addr + 1;
         end
       end
       SEND_WR_CMD: begin
-        /*
-        if (!r_tmp_store) begin
-          r_tmp_store         <=  1;
-          r_tmp_data          <=  i_ingress_data;
-        end
-        */
-
         if (i_app_rdy && o_app_en) begin
           /*
             Write data was accepted, now we just need to wait for the command
@@ -303,14 +270,12 @@ always @ (posedge clk) begin
           else begin
             //o_ingress_stb       <=  1;
             //o_app_wdf_wren      <=  1;
-            //state               <=  WR_TO_RAM_BOT;
             state               <=  PREP_WR_DATA1;
           end
 //          o_app_wdf_data        <=  i_ingress_data;
         end
       end
       PREP_READ: begin
-
         if (i_egress_en) begin
           r_data_req_count      <=  0;
           r_data_count          <=  0;
@@ -334,9 +299,9 @@ always @ (posedge clk) begin
           /*Every one of these counts as two pieces of data*/
           o_app_en              <=  1;
           if (o_app_en && i_app_rdy) begin
-            r_data_req_count    <=  r_data_req_count + 1;
+            r_data_req_count    <=  r_data_req_count + 2;
             r_app_addr          <=  r_app_addr + 1;
-            if (r_data_req_count + 1 >= w_app_egr_size) begin
+            if (r_data_req_count + 2 >= w_app_egr_size) begin
               o_app_en          <=  0;
             end
           end
@@ -347,12 +312,13 @@ always @ (posedge clk) begin
         end
         //Done
         if (r_data_count >= i_egress_size) begin
+          o_app_en              <=  0;
           o_egress_act          <=  0;
           state                 <= PREP_READ;
         end
       end
       default: begin
-        state                   <=  IDLE;
+        state                     <=  IDLE;
       end
     endcase
   end

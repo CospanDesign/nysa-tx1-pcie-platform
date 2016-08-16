@@ -30,6 +30,7 @@ VERILOG_SOURCES += ${TOPDIR}/sim/wishbone_mem_interconnect.v
 
 VERILOG_SOURCES += ${NYSA}/verilog/generic/ppfifo.v
 VERILOG_SOURCES += ${NYSA}/verilog/generic/cross_clock_enable.v
+VERILOG_SOURCES += ${NYSA}/verilog/generic/cross_clock_strobe.v
 VERILOG_SOURCES += ${NYSA}/verilog/generic/blk_mem.v
 VERILOG_SOURCES += ${NYSA}/verilog/generic/dpb.v
 

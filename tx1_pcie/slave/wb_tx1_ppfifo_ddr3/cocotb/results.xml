@@ -4,6 +4,6 @@
     <testcase classname="test_dut" name="single_block_write_read_test" time="0.0">
       <skipped />
     </testcase>
-    <testcase classname="test_dut" name="single_wbs_read_write_test" time="2.9924418926239014" />
+    <testcase classname="test_dut" name="single_wbs_read_write_test" time="3.300565004348755" />
   </testsuite>
 </testsuites>
